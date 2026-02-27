@@ -16,6 +16,7 @@ const VALID_AUTH_PROVIDERS = new Set(["openai-codex"]);
 const VALID_ABILITY_PROFILES = new Set(["web-design"]);
 const VALID_INTERACTION_MODES = new Set(["terminal", "localhost"]);
 const VALID_LOCAL_RUNTIMES = new Set(["ollama", "lmstudio"]);
+const DEFAULT_CONTEXT_GUARD_THRESHOLD_PCT = 65;
 const SHELL_OPERATOR_PATTERN = /(?:\r|\n|&&|\|\||;|\||`|\$\(|\$\{)/;
 const SHELL_COMMAND_PREFIX_PATTERN =
   /^\s*(?:cd|bash|sh|zsh|fish|node|npm|pnpm|yarn|npx|corepack|curl|git)\b/i;
@@ -33,6 +34,8 @@ export function getDefaultConfig() {
       localRuntime: "ollama",
       interactionMode: "terminal",
       authProvider: "openai-codex",
+      contextGuardEnabled: true,
+      contextGuardThresholdPct: DEFAULT_CONTEXT_GUARD_THRESHOLD_PCT,
     },
     auth: {
       provider: "openai-codex",
@@ -108,6 +111,43 @@ export function normalizeLocalRuntime(rawRuntime) {
   }
   const normalized = rawRuntime.trim().toLowerCase();
   return VALID_LOCAL_RUNTIMES.has(normalized) ? normalized : "ollama";
+}
+
+export function normalizeContextGuardEnabled(rawEnabled) {
+  if (typeof rawEnabled === "boolean") {
+    return rawEnabled;
+  }
+  if (typeof rawEnabled === "string" && rawEnabled.trim().length > 0) {
+    const normalized = rawEnabled.trim().toLowerCase();
+    if (normalized === "0" || normalized === "false" || normalized === "off" || normalized === "no") {
+      return false;
+    }
+    if (normalized === "1" || normalized === "true" || normalized === "on" || normalized === "yes") {
+      return true;
+    }
+  }
+  return true;
+}
+
+export function normalizeContextGuardThresholdPct(rawThreshold) {
+  const fallback = DEFAULT_CONTEXT_GUARD_THRESHOLD_PCT;
+  if (typeof rawThreshold === "number" && Number.isFinite(rawThreshold)) {
+    const rounded = Math.round(rawThreshold);
+    if (rounded < 40) {
+      return 40;
+    }
+    if (rounded > 90) {
+      return 90;
+    }
+    return rounded;
+  }
+  if (typeof rawThreshold === "string" && rawThreshold.trim().length > 0) {
+    const parsed = Number.parseInt(rawThreshold.trim(), 10);
+    if (!Number.isNaN(parsed)) {
+      return normalizeContextGuardThresholdPct(parsed);
+    }
+  }
+  return fallback;
 }
 
 function resolveRawPath(rawPath) {
@@ -190,6 +230,10 @@ export function readConfig() {
         localRuntime: normalizeLocalRuntime(defaults.localRuntime),
         interactionMode: normalizeInteractionMode(defaults.interactionMode),
         authProvider: normalizeAuthProvider(defaults.authProvider ?? modelProvider),
+        contextGuardEnabled: normalizeContextGuardEnabled(defaults.contextGuardEnabled),
+        contextGuardThresholdPct: normalizeContextGuardThresholdPct(
+          defaults.contextGuardThresholdPct,
+        ),
       },
       auth: {
         provider: normalizeAuthProvider(auth.provider ?? defaults.authProvider),

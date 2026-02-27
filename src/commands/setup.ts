@@ -10,6 +10,8 @@ import {
   isUnsafeWorkspaceInput,
   normalizeAbilityProfile,
   normalizeAuthProvider,
+  normalizeContextGuardEnabled,
+  normalizeContextGuardThresholdPct,
   normalizeInteractionMode,
   normalizeLocalRuntime,
   normalizeModelProvider,
@@ -38,6 +40,8 @@ export async function setupCommand(options: any = {}) {
       mission: options.mission,
       interaction: options.interaction,
       authProvider: options.authProvider,
+      contextGuardEnabled: options.contextGuardEnabled,
+      contextGuardThresholdPct: options.contextGuardThresholdPct,
       login: options.login,
       skipLogin: options.skipLogin,
     });
@@ -66,12 +70,19 @@ export async function setupCommand(options: any = {}) {
     options.interaction ?? current.defaults.interactionMode,
   );
   const authProvider = normalizeAuthProvider(options.authProvider ?? current.defaults.authProvider);
+  const contextGuardEnabled = normalizeContextGuardEnabled(
+    options.contextGuardEnabled ?? current.defaults.contextGuardEnabled,
+  );
+  const contextGuardThresholdPct = normalizeContextGuardThresholdPct(
+    options.contextGuardThresholdPct ?? current.defaults.contextGuardThresholdPct,
+  );
   const installResult = installAbilityProfile({
     abilityProfile,
     workspace,
     modelProvider,
     localRuntime,
     interactionMode,
+    contextGuardThresholdPct,
   });
 
   const nextConfig = {
@@ -85,6 +96,8 @@ export async function setupCommand(options: any = {}) {
       localRuntime,
       interactionMode,
       authProvider,
+      contextGuardEnabled,
+      contextGuardThresholdPct,
     },
     auth: {
       ...current.auth,
@@ -96,6 +109,8 @@ export async function setupCommand(options: any = {}) {
         installedAt: installResult.installedAt,
         globalProfileDir: installResult.globalProfileDir,
         workspaceProfileDir: installResult.workspaceProfileDir,
+        memoryFilePath: installResult.memoryFilePath,
+        contextGuardThresholdPct: installResult.contextGuardThresholdPct,
       },
     },
   };
@@ -113,5 +128,9 @@ export async function setupCommand(options: any = {}) {
   console.log(`Ability profile: ${nextConfig.defaults.abilityProfile}`);
   console.log(`Interaction mode: ${nextConfig.defaults.interactionMode}`);
   console.log(`Auth provider: ${nextConfig.defaults.authProvider}`);
+  console.log(
+    `Context guard: ${nextConfig.defaults.contextGuardEnabled ? `enabled (${nextConfig.defaults.contextGuardThresholdPct}%)` : "disabled"}`,
+  );
+  console.log(`Memory file: ${installResult.memoryFilePath}`);
   console.log("Run `kaizen onboard` anytime for the guided setup flow.");
 }

@@ -24,11 +24,17 @@ This file keeps Kaizen aligned to its own architecture as a focused project-buil
   - model provider
   - ability profile
   - interaction mode
+  - default workspace location
+  - context guard configuration
 
 5. Installer-first distribution
 - One-command install scripts:
   - `install.sh` for macOS/Linux
   - `install.ps1` for Windows
+
+6. Context continuity
+- Context guard is enabled by default with a 65% threshold.
+- Session compression writes persistent markdown memory under `.kaizen/memory/`.
 
 ## Product direction
 
@@ -42,6 +48,7 @@ This file keeps Kaizen aligned to its own architecture as a focused project-buil
 - [x] Compiled runtime pipeline (`dist/entry.js`)
 - [x] One-command install scripts
 - [x] Guided onboarding
+- [x] Context guard + markdown memory trail
 - [ ] Rich local UI chat shell (future)
 - [ ] Expanded profile marketplace (future)
 

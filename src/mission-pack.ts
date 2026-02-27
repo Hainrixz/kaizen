@@ -9,6 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { resolveKaizenHome } from "./config.js";
+import { ensureSessionMemoryFile } from "./context-guard.js";
 
 const OUTPUT_SIGNATURE = "# Scaffolded with the Project Builder by @soyEnriqueRocha x @tododeia";
 
@@ -75,6 +76,8 @@ function buildWebDesignWorkspaceContext(params) {
     "",
     `Model provider: ${params.modelProvider}`,
     `Interaction mode: ${params.interactionMode}`,
+    `Context guard threshold: ${params.contextGuardThresholdPct}%`,
+    `Session memory file: ${params.memoryFilePath}`,
     "",
     "If future profiles are installed, this file can be replaced or expanded.",
   ].join("\n");
@@ -87,6 +90,8 @@ export function installAbilityProfile(params) {
   const modelProvider = params.modelProvider ?? "openai-codex";
   const localRuntime = params.localRuntime ?? "ollama";
   const interactionMode = params.interactionMode ?? "terminal";
+  const contextGuardThresholdPct =
+    typeof params.contextGuardThresholdPct === "number" ? params.contextGuardThresholdPct : 65;
 
   if (abilityProfile !== "web-design") {
     throw new Error(`unsupported ability profile: ${abilityProfile}`);
@@ -98,6 +103,11 @@ export function installAbilityProfile(params) {
 
   ensureDir(globalProfileDir);
   ensureDir(workspaceProfileDir);
+  const memoryResult = ensureSessionMemoryFile({
+    workspace,
+    abilityProfile,
+    thresholdPct: contextGuardThresholdPct,
+  });
 
   writeTextFile(
     path.join(globalProfileDir, "README.md"),
@@ -121,6 +131,8 @@ export function installAbilityProfile(params) {
     buildWebDesignWorkspaceContext({
       modelProvider,
       interactionMode,
+      contextGuardThresholdPct: memoryResult.thresholdPct,
+      memoryFilePath: memoryResult.memoryPath,
     }),
   );
 
@@ -137,5 +149,7 @@ export function installAbilityProfile(params) {
     installedAt,
     globalProfileDir,
     workspaceProfileDir,
+    memoryFilePath: memoryResult.memoryPath,
+    contextGuardThresholdPct: memoryResult.thresholdPct,
   };
 }

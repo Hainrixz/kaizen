@@ -21,6 +21,9 @@ Architecture notes: see `docs/ARCHITECTURE_NOTES.md`.
   - ability profile (`web-design` in v1)
   - interaction mode (`terminal` or `localhost`)
   - where to save projects (`desktop`, `documents`, `home`, or custom path)
+- Context Guard:
+  - enabled by default with `65%` compression threshold
+  - creates persistent markdown memory in `.kaizen/memory/<ability>.md`
 
 ## Quick start
 
@@ -68,8 +71,8 @@ iwr -useb https://raw.githubusercontent.com/Hainrixz/kaizen/main/install.ps1 | i
 ## Commands
 
 - `kaizen help`
-- `kaizen setup [--workspace <dir>] [--workspace-location desktop|documents|home|custom] [--model openai-codex|local] [--ability-profile web-design]`
-- `kaizen onboard [--workspace <dir>] [--workspace-location desktop|documents|home|custom] [--model openai-codex|local] [--ability-profile web-design] [--interaction terminal|localhost]`
+- `kaizen setup [--workspace <dir>] [--workspace-location desktop|documents|home|custom] [--model openai-codex|local] [--ability-profile web-design] [--context-guard-enabled true|false] [--context-guard-threshold-pct <number>]`
+- `kaizen onboard [--workspace <dir>] [--workspace-location desktop|documents|home|custom] [--model openai-codex|local] [--ability-profile web-design] [--interaction terminal|localhost] [--context-guard-enabled true|false] [--context-guard-threshold-pct <number>]`
 - `kaizen status`
 - `kaizen auth status`
 - `kaizen auth login --provider openai-codex`

@@ -58,6 +58,8 @@ function createProgram() {
     .option("--ability-profile <name>", "Ability profile (v1: web-design)")
     .option("--mission <name>", "Alias for --ability-profile (for compatibility)")
     .option("--interaction <mode>", "Interaction mode: terminal|localhost")
+    .option("--context-guard-enabled <value>", "Context guard enabled: true|false")
+    .option("--context-guard-threshold-pct <number>", "Context compression threshold percentage")
     .option(
       "--auth-provider <provider>",
       "Auth provider used for OAuth login (currently: openai-codex)",
@@ -82,6 +84,8 @@ function createProgram() {
     .option("--ability-profile <name>", "Ability profile (v1: web-design)")
     .option("--mission <name>", "Alias for --ability-profile (for compatibility)")
     .option("--interaction <mode>", "Interaction mode: terminal|localhost")
+    .option("--context-guard-enabled <value>", "Context guard enabled: true|false")
+    .option("--context-guard-threshold-pct <number>", "Context compression threshold percentage")
     .option("--auth-provider <provider>", "Auth provider (currently: openai-codex)")
     .option("--login", "Run OAuth login after onboarding", false)
     .option("--skip-login", "Skip OAuth login after onboarding", false)

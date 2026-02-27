@@ -14,6 +14,8 @@ import {
   isUnsafeWorkspaceInput,
   normalizeAbilityProfile,
   normalizeAuthProvider,
+  normalizeContextGuardEnabled,
+  normalizeContextGuardThresholdPct,
   normalizeInteractionMode,
   normalizeLocalRuntime,
   normalizeModelProvider,
@@ -225,6 +227,12 @@ export async function onboardCommand(options: any = {}) {
     options.interaction ?? current.defaults.interactionMode,
   );
   let authProvider = normalizeAuthProvider(options.authProvider ?? current.defaults.authProvider);
+  const contextGuardEnabled = normalizeContextGuardEnabled(
+    options.contextGuardEnabled ?? current.defaults.contextGuardEnabled,
+  );
+  const contextGuardThresholdPct = normalizeContextGuardThresholdPct(
+    options.contextGuardThresholdPct ?? current.defaults.contextGuardThresholdPct,
+  );
   const hasExplicitLoginChoice = Boolean(options.login) || Boolean(options.skipLogin);
   let runLogin = Boolean(options.login);
 
@@ -346,6 +354,9 @@ export async function onboardCommand(options: any = {}) {
     console.log(`- interaction mode: ${interactionMode}`);
     console.log(`- workspace: ${workspace}`);
     console.log(`- run OAuth login now: ${runLogin ? "yes" : "no"}`);
+    console.log(
+      `- context guard: ${contextGuardEnabled ? `enabled (${contextGuardThresholdPct}%)` : "disabled"}`,
+    );
 
     const approved = await askYesNo("Apply this configuration?", true);
     if (approved === null || !approved) {
@@ -363,6 +374,7 @@ export async function onboardCommand(options: any = {}) {
     modelProvider,
     localRuntime,
     interactionMode,
+    contextGuardThresholdPct,
   });
 
   const nextConfig = {
@@ -376,6 +388,8 @@ export async function onboardCommand(options: any = {}) {
       localRuntime,
       interactionMode,
       authProvider,
+      contextGuardEnabled,
+      contextGuardThresholdPct,
     },
     auth: {
       provider: authProvider,
@@ -387,6 +401,8 @@ export async function onboardCommand(options: any = {}) {
         installedAt: installResult.installedAt,
         globalProfileDir: installResult.globalProfileDir,
         workspaceProfileDir: installResult.workspaceProfileDir,
+        memoryFilePath: installResult.memoryFilePath,
+        contextGuardThresholdPct: installResult.contextGuardThresholdPct,
       },
     },
   };
@@ -407,8 +423,12 @@ export async function onboardCommand(options: any = {}) {
   }
   console.log(`Ability profile: ${nextConfig.defaults.abilityProfile}`);
   console.log(`Interaction mode: ${nextConfig.defaults.interactionMode}`);
+  console.log(
+    `Context guard: ${nextConfig.defaults.contextGuardEnabled ? `enabled (${nextConfig.defaults.contextGuardThresholdPct}%)` : "disabled"}`,
+  );
   console.log(`Global profile files: ${installResult.globalProfileDir}`);
   console.log(`Workspace profile files: ${installResult.workspaceProfileDir}`);
+  console.log(`Memory file: ${installResult.memoryFilePath}`);
 
   return nextConfig;
 }

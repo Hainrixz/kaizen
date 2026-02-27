@@ -7,11 +7,13 @@
  */
 
 import { readConfig, resolveConfigPath } from "../config.js";
+import { resolveSessionMemoryPath } from "../context-guard.js";
 
 export async function statusCommand() {
   const config = readConfig();
   const activeProfile = config.defaults.abilityProfile;
   const installedProfile = config.missions?.[activeProfile];
+  const memoryFile = resolveSessionMemoryPath(config.defaults.workspace, activeProfile);
 
   console.log("");
   console.log("Kaizen status");
@@ -24,6 +26,10 @@ export async function statusCommand() {
   console.log(`Ability profile: ${activeProfile}`);
   console.log(`Interaction mode: ${config.defaults.interactionMode}`);
   console.log(`Auth provider: ${config.defaults.authProvider}`);
+  console.log(
+    `Context guard: ${config.defaults.contextGuardEnabled ? `enabled (${config.defaults.contextGuardThresholdPct}%)` : "disabled"}`,
+  );
+  console.log(`Memory file: ${memoryFile}`);
   console.log(`Last OAuth login: ${config.auth?.lastLoginAt ?? "not recorded"}`);
   console.log(
     `Profile installed: ${installedProfile?.installedAt ? `yes (${installedProfile.installedAt})` : "no"}`,
