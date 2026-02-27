@@ -9,6 +9,7 @@
 import path from "node:path";
 import { readConfig, resolveConfigPath } from "../config.js";
 import { resolveSessionMemoryPath } from "../context-guard.js";
+import { resolveServiceManager } from "../service/manager.js";
 
 export async function statusCommand() {
   const config = readConfig();
@@ -17,32 +18,23 @@ export async function statusCommand() {
   const memoryFile = resolveSessionMemoryPath(config.defaults.workspace, activeProfile);
   const skillsIndexFile =
     installedProfile?.workspaceSkillsIndexPath ??
-    path.join(
-      config.defaults.workspace,
-      ".kaizen",
-      "profiles",
-      activeProfile,
-      "SKILLS_INDEX.md",
-    );
+    path.join(config.defaults.workspace, ".kaizen", "profiles", activeProfile, "SKILLS_INDEX.md");
   const walkthroughFile =
     installedProfile?.workspaceWalkthroughPath ??
-    path.join(
-      config.defaults.workspace,
-      ".kaizen",
-      "profiles",
-      activeProfile,
-      "WALKTHROUGH.md",
-    );
+    path.join(config.defaults.workspace, ".kaizen", "profiles", activeProfile, "WALKTHROUGH.md");
   const marketplaceSkillsFile =
     installedProfile?.workspaceMarketplaceSkillsPath ??
-    path.join(
-      config.defaults.workspace,
-      ".kaizen",
-      "profiles",
-      activeProfile,
-      "MARKETPLACE_SKILLS.md",
-    );
+    path.join(config.defaults.workspace, ".kaizen", "profiles", activeProfile, "MARKETPLACE_SKILLS.md");
   const marketplaceState = installedProfile?.marketplaceSkills ?? null;
+
+  let serviceDetail = `${config.service.lastKnownStatus} (cached)`;
+  try {
+    const manager = resolveServiceManager();
+    const live = await manager.status();
+    serviceDetail = `${live.running ? "running" : "stopped"} (${live.detail})`;
+  } catch {
+    // unsupported platform or service check failure
+  }
 
   console.log("");
   console.log("Kaizen status");
@@ -54,6 +46,7 @@ export async function statusCommand() {
   }
   console.log(`Ability profile: ${activeProfile}`);
   console.log(`Interaction mode: ${config.defaults.interactionMode}`);
+  console.log(`Run mode: ${config.defaults.runMode}`);
   console.log(`Auth provider: ${config.defaults.authProvider}`);
   console.log(
     `Context guard: ${config.defaults.contextGuardEnabled ? `enabled (${config.defaults.contextGuardThresholdPct}%)` : "disabled"}`,
@@ -61,6 +54,11 @@ export async function statusCommand() {
   console.log(
     `Marketplace skills: ${config.defaults.marketplaceSkillsEnabled ? "enabled" : "disabled"}`,
   );
+  console.log(`Telegram enabled: ${config.channels.telegram.enabled ? "yes" : "no"}`);
+  console.log(
+    `Telegram allowFrom: ${config.channels.telegram.allowFrom.join(", ") || "(empty)"}`,
+  );
+  console.log(`Service: ${serviceDetail}`);
   console.log(`Walkthrough: ${walkthroughFile}`);
   console.log(`Skills index: ${skillsIndexFile}`);
   console.log(`Marketplace skills catalog: ${marketplaceSkillsFile}`);

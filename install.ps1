@@ -5,7 +5,8 @@ param(
   [string]$Branch = $(if ($env:KAIZEN_BRANCH) { $env:KAIZEN_BRANCH } else { "" }),
   [string]$InstallDir = $(if ($env:KAIZEN_INSTALL_DIR) { $env:KAIZEN_INSTALL_DIR } else { Join-Path $HOME ".kaizen\agent" }),
   [string]$BinDir = $(if ($env:KAIZEN_BIN_DIR) { $env:KAIZEN_BIN_DIR } else { Join-Path $HOME ".kaizen\bin" }),
-  [switch]$NoLaunch
+  [switch]$NoLaunch,
+  [switch]$NoOnboard
 )
 
 function Resolve-AutoLaunch {
@@ -24,6 +25,69 @@ function Resolve-AutoLaunch {
     return $false
   }
   return $true
+}
+
+function Resolve-AutoOnboard {
+  param([switch]$NoOnboardFlag)
+  if ($NoOnboardFlag) {
+    return $false
+  }
+
+  $value = $env:KAIZEN_AUTO_ONBOARD
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    return $true
+  }
+
+  $normalized = $value.Trim().ToLowerInvariant()
+  if ($normalized -in @("0", "false", "off", "no")) {
+    return $false
+  }
+  return $true
+}
+
+function Get-RunModeFromConfig {
+  param([string]$ConfigPath)
+  if (-not (Test-Path $ConfigPath)) {
+    return "manual"
+  }
+
+  try {
+    $raw = Get-Content -Path $ConfigPath -Raw
+    $parsed = $raw | ConvertFrom-Json
+    $mode = "$($parsed.defaults.runMode)".Trim().ToLowerInvariant()
+    if ($mode -eq "always-on") {
+      return "always-on"
+    }
+  } catch {
+  }
+
+  return "manual"
+}
+
+function Write-ManualNextSteps {
+  param(
+    [bool]$HasConfig,
+    [string]$RunMode
+  )
+
+  Write-Host "run these manually:"
+  $step = 1
+
+  if (-not $HasConfig) {
+    Write-Host "$step) kaizen onboard"
+    $step++
+    $RunMode = "manual"
+  }
+
+  if ($RunMode -eq "always-on") {
+    Write-Host "$step) kaizen service install"
+    $step++
+    Write-Host "$step) kaizen service start"
+    $step++
+    Write-Host "$step) kaizen service status"
+  } else {
+    Write-Host "$step) kaizen start"
+  }
 }
 
 function Test-Command {
@@ -62,7 +126,9 @@ Write-Host "[kaizen installer] branch: $Branch"
 Write-Host "[kaizen installer] install dir: $InstallDir"
 Write-Host "[kaizen installer] bin dir: $BinDir"
 $autoLaunch = Resolve-AutoLaunch -NoLaunchFlag:$NoLaunch
+$autoOnboard = Resolve-AutoOnboard -NoOnboardFlag:$NoOnboard
 Write-Host "[kaizen installer] auto launch: $autoLaunch"
+Write-Host "[kaizen installer] auto onboard: $autoOnboard"
 
 $configPath = if ($env:KAIZEN_CONFIG_PATH) { $env:KAIZEN_CONFIG_PATH } else { Join-Path $HOME ".kaizen\kaizen.json" }
 $hadConfigBeforeInstall = Test-Path $configPath
@@ -135,29 +201,54 @@ if ($pathUpdated) {
 Write-Host ""
 if ($autoLaunch) {
   if (-not $hadConfigBeforeInstall) {
-    Write-Host "[kaizen installer] launching onboarding..."
-    try {
-      & $cmdPath onboard
-    } catch {
-      Write-Warning "[kaizen installer] onboarding failed: $($_.Exception.Message)"
+    if ($autoOnboard) {
+      Write-Host "[kaizen installer] launching onboarding..."
+      try {
+        & $cmdPath onboard
+      } catch {
+        Write-Warning "[kaizen installer] onboarding failed: $($_.Exception.Message)"
+      }
+    } else {
+      Write-Host "[kaizen installer] onboarding skipped (-NoOnboard)."
     }
   } else {
     Write-Host "[kaizen installer] existing config found. skipping onboarding."
   }
 
-  Write-Host "[kaizen installer] launching kaizen..."
-  try {
-    & $cmdPath start
-  } catch {
-    Write-Warning "[kaizen installer] start failed: $($_.Exception.Message)"
+  $hasConfigNow = Test-Path $configPath
+  $runMode = Get-RunModeFromConfig -ConfigPath $configPath
+
+  if ($hasConfigNow -and $runMode -eq "always-on") {
+    Write-Host "[kaizen installer] run mode is always-on. installing and starting service..."
+    try {
+      & $cmdPath service install
+    } catch {
+      Write-Warning "[kaizen installer] service install failed: $($_.Exception.Message)"
+    }
+    try {
+      & $cmdPath service start
+    } catch {
+      Write-Warning "[kaizen installer] service start failed: $($_.Exception.Message)"
+    }
+    try {
+      & $cmdPath service status
+    } catch {
+      Write-Warning "[kaizen installer] service status check failed: $($_.Exception.Message)"
+    }
+  } elseif ($hasConfigNow) {
+    Write-Host "[kaizen installer] run mode is manual. launching kaizen..."
+    try {
+      & $cmdPath start
+    } catch {
+      Write-Warning "[kaizen installer] start failed: $($_.Exception.Message)"
+    }
+  } else {
+    Write-Host "no Kaizen config found yet."
+    Write-ManualNextSteps -HasConfig:$false -RunMode:"manual"
   }
 } else {
   Write-Host "auto-launch disabled."
-  Write-Host "run these manually:"
-  if (-not $hadConfigBeforeInstall) {
-    Write-Host "1) kaizen onboard"
-    Write-Host "2) kaizen start"
-  } else {
-    Write-Host "1) kaizen start"
-  }
+  $hasConfigNow = Test-Path $configPath
+  $runMode = Get-RunModeFromConfig -ConfigPath $configPath
+  Write-ManualNextSteps -HasConfig:$hasConfigNow -RunMode:$runMode
 }

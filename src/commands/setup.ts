@@ -16,6 +16,12 @@ import {
   normalizeLocalRuntime,
   normalizeMarketplaceSkillsEnabled,
   normalizeModelProvider,
+  normalizeRunMode,
+  normalizeTelegramAllowFrom,
+  normalizeTelegramBotToken,
+  normalizeTelegramEnabled,
+  normalizeTelegramLongPollTimeoutSec,
+  normalizeTelegramPollIntervalMs,
   readConfig,
   resolveConfigPath,
   resolveWorkspacePath,
@@ -25,6 +31,18 @@ import { authLoginCommand } from "./auth.js";
 import { onboardCommand } from "./onboard.js";
 import { installAbilityProfile } from "../mission-pack.js";
 import { installMarketplaceSkillsForAbility } from "../skills-marketplace.js";
+import { installAndStartServiceForAlwaysOnMode } from "./service.js";
+
+function parseAcceptAlwaysOnRisk(options: any) {
+  if (typeof options.acceptAlwaysOnRisk === "boolean") {
+    return options.acceptAlwaysOnRisk;
+  }
+  if (typeof options.acceptAlwaysOnRisk === "string") {
+    const normalized = options.acceptAlwaysOnRisk.trim().toLowerCase();
+    return normalized === "1" || normalized === "true" || normalized === "yes";
+  }
+  return false;
+}
 
 export async function setupCommand(options: any = {}) {
   const runWizard = Boolean(options.wizard);
@@ -41,6 +59,13 @@ export async function setupCommand(options: any = {}) {
       abilityProfile: options.abilityProfile,
       mission: options.mission,
       interaction: options.interaction,
+      runMode: options.runMode,
+      enableTelegram: options.enableTelegram,
+      telegramBotToken: options.telegramBotToken,
+      telegramAllowFrom: options.telegramAllowFrom,
+      telegramPollIntervalMs: options.telegramPollIntervalMs,
+      telegramLongPollTimeoutSec: options.telegramLongPollTimeoutSec,
+      acceptAlwaysOnRisk: options.acceptAlwaysOnRisk,
       authProvider: options.authProvider,
       contextGuardEnabled: options.contextGuardEnabled,
       contextGuardThresholdPct: options.contextGuardThresholdPct,
@@ -62,6 +87,7 @@ export async function setupCommand(options: any = {}) {
       "Invalid workspace path. Pass a filesystem path (example: ~/kaizen-workspace), not a shell command.",
     );
   }
+
   const workspace = resolveWorkspacePath(options.workspace, current.defaults.workspace);
   const modelProvider = normalizeModelProvider(
     options.model ?? options.modelProvider ?? current.defaults.modelProvider,
@@ -73,6 +99,7 @@ export async function setupCommand(options: any = {}) {
   const interactionMode = normalizeInteractionMode(
     options.interaction ?? current.defaults.interactionMode,
   );
+  const runMode = normalizeRunMode(options.runMode ?? current.defaults.runMode);
   const authProvider = normalizeAuthProvider(options.authProvider ?? current.defaults.authProvider);
   const contextGuardEnabled = normalizeContextGuardEnabled(
     options.contextGuardEnabled ?? current.defaults.contextGuardEnabled,
@@ -84,6 +111,36 @@ export async function setupCommand(options: any = {}) {
     options.marketplaceSkills ?? current.defaults.marketplaceSkillsEnabled,
   );
   const forceMarketplaceSkills = Boolean(options.forceMarketplaceSkills);
+
+  const telegramEnabled =
+    options.enableTelegram !== undefined
+      ? normalizeTelegramEnabled(options.enableTelegram)
+      : current.channels.telegram.enabled;
+  const telegramBotToken = normalizeTelegramBotToken(
+    options.telegramBotToken ?? current.channels.telegram.botToken,
+  );
+  const telegramAllowFrom = normalizeTelegramAllowFrom(
+    options.telegramAllowFrom ?? current.channels.telegram.allowFrom,
+  );
+  const telegramPollIntervalMs = normalizeTelegramPollIntervalMs(
+    options.telegramPollIntervalMs ?? current.channels.telegram.pollIntervalMs,
+  );
+  const telegramLongPollTimeoutSec = normalizeTelegramLongPollTimeoutSec(
+    options.telegramLongPollTimeoutSec ?? current.channels.telegram.longPollTimeoutSec,
+  );
+
+  const acceptAlwaysOnRisk = parseAcceptAlwaysOnRisk(options) || Boolean(current.service.riskAcceptedAt);
+
+  if (runMode === "always-on" && !acceptAlwaysOnRisk) {
+    throw new Error("Always-on mode requires --accept-always-on-risk true.");
+  }
+  if (telegramEnabled && !telegramBotToken) {
+    throw new Error("Telegram channel requires --telegram-bot-token.");
+  }
+  if (telegramEnabled && telegramAllowFrom.length === 0) {
+    throw new Error("Telegram channel requires --telegram-allow-from with numeric IDs.");
+  }
+
   const installResult = installAbilityProfile({
     abilityProfile,
     workspace,
@@ -92,6 +149,7 @@ export async function setupCommand(options: any = {}) {
     interactionMode,
     contextGuardThresholdPct,
   });
+
   let marketplaceSkillsResult = null;
   if (marketplaceSkillsEnabled) {
     console.log("");
@@ -115,6 +173,7 @@ export async function setupCommand(options: any = {}) {
 
   const nextConfig = {
     ...current,
+    version: 3,
     defaults: {
       ...current.defaults,
       workspace,
@@ -123,10 +182,30 @@ export async function setupCommand(options: any = {}) {
       modelProvider,
       localRuntime,
       interactionMode,
+      runMode,
       authProvider,
       contextGuardEnabled,
       contextGuardThresholdPct,
       marketplaceSkillsEnabled,
+    },
+    channels: {
+      ...current.channels,
+      telegram: {
+        ...current.channels.telegram,
+        enabled: telegramEnabled,
+        botToken: telegramEnabled ? telegramBotToken : current.channels.telegram.botToken,
+        allowFrom: telegramEnabled ? telegramAllowFrom : current.channels.telegram.allowFrom,
+        pollIntervalMs: telegramPollIntervalMs,
+        longPollTimeoutSec: telegramLongPollTimeoutSec,
+      },
+    },
+    service: {
+      ...current.service,
+      runtime: "node",
+      riskAcceptedAt:
+        runMode === "always-on" && acceptAlwaysOnRisk
+          ? current.service.riskAcceptedAt ?? new Date().toISOString()
+          : current.service.riskAcceptedAt,
     },
     auth: {
       ...current.auth,
@@ -167,10 +246,15 @@ export async function setupCommand(options: any = {}) {
       },
     },
   };
+
   const configPath = writeConfig(nextConfig);
 
   if (options.login && modelProvider === "openai-codex") {
     await authLoginCommand({ provider: authProvider });
+  }
+
+  if (runMode === "always-on") {
+    await installAndStartServiceForAlwaysOnMode();
   }
 
   console.log("");
@@ -180,6 +264,8 @@ export async function setupCommand(options: any = {}) {
   console.log(`Model provider: ${nextConfig.defaults.modelProvider}`);
   console.log(`Ability profile: ${nextConfig.defaults.abilityProfile}`);
   console.log(`Interaction mode: ${nextConfig.defaults.interactionMode}`);
+  console.log(`Run mode: ${nextConfig.defaults.runMode}`);
+  console.log(`Telegram: ${nextConfig.channels.telegram.enabled ? "enabled" : "disabled"}`);
   console.log(`Auth provider: ${nextConfig.defaults.authProvider}`);
   console.log(
     `Context guard: ${nextConfig.defaults.contextGuardEnabled ? `enabled (${nextConfig.defaults.contextGuardThresholdPct}%)` : "disabled"}`,

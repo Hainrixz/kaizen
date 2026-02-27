@@ -11,6 +11,7 @@ if [[ -n "${KAIZEN_BIN_DIR+x}" ]]; then
 fi
 KAIZEN_BIN_DIR="${KAIZEN_BIN_DIR:-$DEFAULT_KAIZEN_BIN_DIR}"
 KAIZEN_AUTO_LAUNCH="${KAIZEN_AUTO_LAUNCH:-1}"
+KAIZEN_AUTO_ONBOARD="${KAIZEN_AUTO_ONBOARD:-1}"
 
 path_contains_dir() {
   local target_dir="$1"
@@ -132,6 +133,58 @@ ensure_bin_on_shell_path() {
   return 0
 }
 
+read_config_run_mode() {
+  if [[ ! -f "$KAIZEN_CONFIG_PATH" ]]; then
+    echo "manual"
+    return
+  fi
+
+  local detected
+  detected="$(node -e '
+const fs = require("node:fs");
+const file = process.argv[1];
+try {
+  const raw = fs.readFileSync(file, "utf8");
+  const parsed = JSON.parse(raw);
+  const mode = parsed && parsed.defaults && typeof parsed.defaults.runMode === "string"
+    ? parsed.defaults.runMode.trim().toLowerCase()
+    : "manual";
+  process.stdout.write(mode === "always-on" ? "always-on" : "manual");
+} catch {
+  process.stdout.write("manual");
+}
+' "$KAIZEN_CONFIG_PATH" 2>/dev/null || echo "manual")"
+
+  if [[ "$detected" == "always-on" ]]; then
+    echo "always-on"
+  else
+    echo "manual"
+  fi
+}
+
+print_manual_next_steps() {
+  local has_config="$1"
+  local run_mode="$2"
+  local step=1
+
+  echo "run these manually:"
+  if [[ "$has_config" != "yes" ]]; then
+    echo "$step) kaizen onboard"
+    step=$((step + 1))
+    run_mode="manual"
+  fi
+
+  if [[ "$run_mode" == "always-on" ]]; then
+    echo "$step) kaizen service install"
+    step=$((step + 1))
+    echo "$step) kaizen service start"
+    step=$((step + 1))
+    echo "$step) kaizen service status"
+  else
+    echo "$step) kaizen start"
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo-url)
@@ -152,6 +205,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-launch)
       KAIZEN_AUTO_LAUNCH="0"
+      shift
+      ;;
+    --no-onboard)
+      KAIZEN_AUTO_ONBOARD="0"
       shift
       ;;
     *)
@@ -202,6 +259,7 @@ echo "[kaizen installer] branch: $KAIZEN_BRANCH"
 echo "[kaizen installer] install dir: $KAIZEN_INSTALL_DIR"
 echo "[kaizen installer] bin dir: $KAIZEN_BIN_DIR"
 echo "[kaizen installer] auto launch: $KAIZEN_AUTO_LAUNCH"
+echo "[kaizen installer] auto onboard: $KAIZEN_AUTO_ONBOARD"
 
 KAIZEN_CONFIG_PATH="${KAIZEN_CONFIG_PATH:-$HOME/.kaizen/kaizen.json}"
 HAD_CONFIG_BEFORE_INSTALL="no"
@@ -273,31 +331,47 @@ echo ""
 if [[ "$KAIZEN_AUTO_LAUNCH" == "1" ]]; then
   if [[ -t 1 && -t 2 && -r /dev/tty && -w /dev/tty ]]; then
     if [[ "$HAD_CONFIG_BEFORE_INSTALL" == "no" ]]; then
-      echo "[kaizen installer] launching onboarding..."
-      "$KAIZEN_BIN_DIR/kaizen" onboard </dev/tty >/dev/tty 2>/dev/tty || true
+      if [[ "$KAIZEN_AUTO_ONBOARD" == "1" ]]; then
+        echo "[kaizen installer] launching onboarding..."
+        "$KAIZEN_BIN_DIR/kaizen" onboard </dev/tty >/dev/tty 2>/dev/tty || true
+      else
+        echo "[kaizen installer] onboarding skipped (--no-onboard)."
+      fi
     else
       echo "[kaizen installer] existing config found. skipping onboarding."
     fi
 
-    echo "[kaizen installer] launching kaizen..."
-    "$KAIZEN_BIN_DIR/kaizen" start </dev/tty >/dev/tty 2>/dev/tty || true
+    HAS_CONFIG_NOW="no"
+    if [[ -f "$KAIZEN_CONFIG_PATH" ]]; then
+      HAS_CONFIG_NOW="yes"
+    fi
+    RUN_MODE="$(read_config_run_mode)"
+
+    if [[ "$RUN_MODE" == "always-on" && "$HAS_CONFIG_NOW" == "yes" ]]; then
+      echo "[kaizen installer] run mode is always-on. installing and starting service..."
+      "$KAIZEN_BIN_DIR/kaizen" service install </dev/tty >/dev/tty 2>/dev/tty || true
+      "$KAIZEN_BIN_DIR/kaizen" service start </dev/tty >/dev/tty 2>/dev/tty || true
+      "$KAIZEN_BIN_DIR/kaizen" service status </dev/tty >/dev/tty 2>/dev/tty || true
+    elif [[ "$HAS_CONFIG_NOW" == "yes" ]]; then
+      echo "[kaizen installer] run mode is manual. launching kaizen..."
+      "$KAIZEN_BIN_DIR/kaizen" start </dev/tty >/dev/tty 2>/dev/tty || true
+    else
+      echo "no Kaizen config found yet."
+      print_manual_next_steps "no" "manual"
+    fi
   else
     echo "interactive terminal not available, skipping auto-launch."
-    echo "run these manually:"
-    if [[ "$HAD_CONFIG_BEFORE_INSTALL" == "no" ]]; then
-      echo "1) kaizen onboard"
-      echo "2) kaizen start"
-    else
-      echo "1) kaizen start"
+    HAS_CONFIG_NOW="no"
+    if [[ -f "$KAIZEN_CONFIG_PATH" ]]; then
+      HAS_CONFIG_NOW="yes"
     fi
+    print_manual_next_steps "$HAS_CONFIG_NOW" "$(read_config_run_mode)"
   fi
 else
   echo "auto-launch disabled."
-  echo "run these manually:"
-  if [[ "$HAD_CONFIG_BEFORE_INSTALL" == "no" ]]; then
-    echo "1) kaizen onboard"
-    echo "2) kaizen start"
-  else
-    echo "1) kaizen start"
+  HAS_CONFIG_NOW="no"
+  if [[ -f "$KAIZEN_CONFIG_PATH" ]]; then
+    HAS_CONFIG_NOW="yes"
   fi
+  print_manual_next_steps "$HAS_CONFIG_NOW" "$(read_config_run_mode)"
 fi

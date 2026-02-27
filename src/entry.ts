@@ -11,8 +11,23 @@ import fs from "node:fs";
 import { Command } from "commander";
 import { printStartupBanner } from "./banner.js";
 import { authLoginCommand, authStatusCommand } from "./commands/auth.js";
+import {
+  telegramDisableCommand,
+  telegramSetupCommand,
+  telegramStatusCommand,
+  telegramTestCommand,
+} from "./commands/channels-telegram.js";
 import { chatCommand } from "./commands/chat.js";
 import { onboardCommand } from "./commands/onboard.js";
+import {
+  serviceInstallCommand,
+  serviceRestartCommand,
+  serviceRunCommand,
+  serviceStartCommand,
+  serviceStatusCommand,
+  serviceStopCommand,
+  serviceUninstallCommand,
+} from "./commands/service.js";
 import { setupCommand } from "./commands/setup.js";
 import { startCommand } from "./commands/start.js";
 import { statusCommand } from "./commands/status.js";
@@ -58,6 +73,13 @@ function createProgram() {
     .option("--ability-profile <name>", "Ability profile (v1: web-design)")
     .option("--mission <name>", "Alias for --ability-profile (for compatibility)")
     .option("--interaction <mode>", "Interaction mode: terminal|localhost")
+    .option("--run-mode <mode>", "Runtime mode: manual|always-on")
+    .option("--enable-telegram <value>", "Enable Telegram channel: true|false")
+    .option("--telegram-bot-token <token>", "Telegram bot token")
+    .option("--telegram-allow-from <csv>", "Telegram allowlist user IDs (comma-separated)")
+    .option("--telegram-poll-interval-ms <number>", "Telegram polling interval in ms")
+    .option("--telegram-long-poll-timeout-sec <number>", "Telegram long-poll timeout in seconds")
+    .option("--accept-always-on-risk <value>", "Acknowledge always-on risk: true|false")
     .option("--context-guard-enabled <value>", "Context guard enabled: true|false")
     .option("--context-guard-threshold-pct <number>", "Context compression threshold percentage")
     .option("--marketplace-skills <value>", "Install marketplace skills: true|false")
@@ -74,7 +96,9 @@ function createProgram() {
 
   program
     .command("onboard")
-    .description("Simple onboarding wizard: model + ability profile + interaction mode")
+    .description(
+      "Simple onboarding wizard: model + ability profile + interaction mode + runtime mode",
+    )
     .option("--non-interactive", "Run without prompts", false)
     .option("--workspace <dir>", "Workspace directory for generated projects")
     .option(
@@ -86,6 +110,13 @@ function createProgram() {
     .option("--ability-profile <name>", "Ability profile (v1: web-design)")
     .option("--mission <name>", "Alias for --ability-profile (for compatibility)")
     .option("--interaction <mode>", "Interaction mode: terminal|localhost")
+    .option("--run-mode <mode>", "Runtime mode: manual|always-on")
+    .option("--enable-telegram <value>", "Enable Telegram channel: true|false")
+    .option("--telegram-bot-token <token>", "Telegram bot token")
+    .option("--telegram-allow-from <csv>", "Telegram allowlist user IDs (comma-separated)")
+    .option("--telegram-poll-interval-ms <number>", "Telegram polling interval in ms")
+    .option("--telegram-long-poll-timeout-sec <number>", "Telegram long-poll timeout in seconds")
+    .option("--accept-always-on-risk <value>", "Acknowledge always-on risk: true|false")
     .option("--context-guard-enabled <value>", "Context guard enabled: true|false")
     .option("--context-guard-threshold-pct <number>", "Context compression threshold percentage")
     .option("--marketplace-skills <value>", "Install marketplace skills: true|false")
@@ -106,7 +137,7 @@ function createProgram() {
 
   program
     .command("start")
-    .description("Start Kaizen using configured interaction mode (terminal or localhost)")
+    .description("Start Kaizen interactive mode (terminal or localhost)")
     .option("--interaction <mode>", "Override interaction mode: terminal|localhost")
     .option("--port <port>", "Port for localhost mode", (value) => Number.parseInt(value, 10))
     .option("--workspace <dir>", "Workspace path for terminal mode")
@@ -133,9 +164,7 @@ function createProgram() {
       await uiCommand(opts);
     });
 
-  const auth = program
-    .command("auth")
-    .description("Manage OAuth authentication providers");
+  const auth = program.command("auth").description("Manage OAuth authentication providers");
 
   auth
     .command("login")
@@ -157,13 +186,110 @@ function createProgram() {
       });
     });
 
+  const service = program.command("service").description("Manage Kaizen always-on service mode");
+
+  service
+    .command("run")
+    .description("Run Kaizen worker in foreground")
+    .option("--daemon", "Run under service manager context", false)
+    .option("--quiet", "Reduce worker logs", false)
+    .action(async (opts) => {
+      await serviceRunCommand(opts);
+    });
+
+  service
+    .command("install")
+    .description("Install Kaizen service")
+    .action(async () => {
+      await serviceInstallCommand();
+    });
+
+  service
+    .command("start")
+    .description("Start Kaizen service")
+    .action(async () => {
+      await serviceStartCommand();
+    });
+
+  service
+    .command("stop")
+    .description("Stop Kaizen service")
+    .action(async () => {
+      await serviceStopCommand();
+    });
+
+  service
+    .command("restart")
+    .description("Restart Kaizen service")
+    .action(async () => {
+      await serviceRestartCommand();
+    });
+
+  service
+    .command("status")
+    .description("Show Kaizen service status")
+    .action(async () => {
+      await serviceStatusCommand();
+    });
+
+  service
+    .command("uninstall")
+    .description("Uninstall Kaizen service")
+    .action(async () => {
+      await serviceUninstallCommand();
+    });
+
+  const channels = program.command("channels").description("Manage Kaizen channels");
+  const telegram = channels.command("telegram").description("Manage Telegram channel");
+
+  telegram
+    .command("setup")
+    .description("Configure Telegram channel and allowlist")
+    .option("--token <token>", "Telegram bot token")
+    .option("--allow-from <csv>", "Comma separated numeric Telegram user IDs")
+    .option("--poll-interval-ms <number>", "Polling interval in ms")
+    .option("--long-poll-timeout-sec <number>", "Long-poll timeout in seconds")
+    .option("--non-interactive", "Run without prompts", false)
+    .action(async (opts) => {
+      await telegramSetupCommand({
+        token: opts.token,
+        allowFrom: opts.allowFrom,
+        pollIntervalMs: opts.pollIntervalMs,
+        longPollTimeoutSec: opts.longPollTimeoutSec,
+        nonInteractive: Boolean(opts.nonInteractive),
+      });
+    });
+
+  telegram
+    .command("status")
+    .description("Show Telegram channel configuration and bot check")
+    .action(async () => {
+      await telegramStatusCommand();
+    });
+
+  telegram
+    .command("disable")
+    .description("Disable Telegram channel")
+    .action(async () => {
+      await telegramDisableCommand();
+    });
+
+  telegram
+    .command("test")
+    .description("Send a Telegram test message")
+    .requiredOption("--to <chatId>", "Telegram chat id")
+    .requiredOption("--message <text>", "Message text")
+    .action(async (opts) => {
+      await telegramTestCommand({
+        to: opts.to,
+        message: opts.message,
+      });
+    });
+
   program
     .command("init <projectName>")
     .description("Generate a starter project")
-    .option(
-      "--focus <mode>",
-      "Project focus: landing-page|web-app|mobile-web-app|tool",
-    )
+    .option("--focus <mode>", "Project focus: landing-page|web-app|mobile-web-app|tool")
     .option("--profile <name>", "Profile id to attach to project metadata")
     .action(async (projectName, opts) => {
       const config = readConfig();

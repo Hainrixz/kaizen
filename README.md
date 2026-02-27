@@ -1,52 +1,10 @@
-> 🔏 Built by [@soyEnriqueRocha](https://instagram.com/soyEnriqueRocha) x [@tododeia](https://instagram.com/tododeia)
-
 # Kaizen
 
-![Kaizen mascot](./assets/kaizen-mascot.png)
+Focused project-builder agent CLI with guided onboarding, profile-based behavior, optional always-on runtime, and Telegram channel support.
 
-Kaizen is a focused project-builder agent workspace with guided, task-oriented workflows.
+## Install
 
-V1 is profile-driven and starts with one ability profile: **web-design**.
-
-Architecture notes: see `docs/ARCHITECTURE_NOTES.md`.
-
-## Current status
-
-- Project scaffold is ready for local or remote install
-- First runnable CLI scaffold added in `src/entry.ts`
-- Watermark/signature blueprint integrated from `BLUEPRINT.md`
-- Onboarding flow now asks for:
-  - arrow-key selection UI for menu choices
-  - model provider (`openai-codex` or `local`)
-  - ability profile (`web-design` in v1)
-  - interaction mode (`terminal` or `localhost`)
-  - where to save projects (`desktop`, `documents`, `home`, or custom path)
-- Web-design ability now ships with a full skill pack:
-  - `WALKTHROUGH.md` + `SKILLS_INDEX.md` + `WORKFLOW.md` + `OUTPUT_TEMPLATE.md`
-  - `skills/01..06` for discovery, IA, visual system, implementation, responsive-accessibility, and QA/launch
-  - `MARKETPLACE_SKILLS.md` for curated external skills from `skills.sh`
-- Onboarding can auto-sync marketplace skills into workspace `.agents/skills`:
-  - web-design, frontend, accessibility, responsive, component, and backend-pattern support
-- Context Guard:
-  - enabled by default with `65%` compression threshold
-  - creates persistent markdown memory in `.kaizen/memory/<ability>.md`
-
-## Quick start
-
-```bash
-git clone https://github.com/Hainrixz/kaizen.git
-cd kaizen
-corepack pnpm install
-corepack pnpm start
-# or:
-corepack pnpm start onboard
-# dev mode (runs TypeScript without build):
-corepack pnpm dev
-```
-
-## One-command install
-
-macOS + Linux:
+macOS / Linux:
 
 ```bash
 curl -fsSL https://tododeia.com/install.sh | bash
@@ -58,58 +16,105 @@ Windows (PowerShell):
 iwr -useb https://tododeia.com/install.ps1 | iex
 ```
 
-What happens next:
+Installer flags:
 
-- First install: onboarding starts automatically, then Kaizen launches.
-- If config already exists: onboarding is skipped and Kaizen launches directly.
+- `--no-onboard` (skip onboarding during install)
+- `--no-launch` (install only; do not auto-start)
 
-Manual mode (skip auto-launch):
+Examples:
 
 ```bash
-KAIZEN_AUTO_LAUNCH=0 curl -fsSL https://tododeia.com/install.sh | bash
+curl -fsSL https://tododeia.com/install.sh | bash -s -- --no-onboard --no-launch
 ```
 
 ```powershell
+$env:KAIZEN_AUTO_ONBOARD=0
 $env:KAIZEN_AUTO_LAUNCH=0
 iwr -useb https://tododeia.com/install.ps1 | iex
 ```
 
-Fallback direct GitHub installer URLs:
+## Runtime model
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/Hainrixz/kaizen/main/install.sh | bash
-```
+Kaizen supports two runtime modes:
 
-```powershell
-iwr -useb https://raw.githubusercontent.com/Hainrixz/kaizen/main/install.ps1 | iex
-```
+1. `manual` (default): Kaizen runs in foreground and stops when the terminal closes.
+2. `always-on` (opt-in): Kaizen runs as an OS service (`launchd`, `systemd --user`, or Windows `schtasks`).
 
-## Commands
+During onboarding/install:
 
-- `kaizen help`
-- `kaizen setup [--workspace <dir>] [--workspace-location desktop|documents|home|custom] [--model openai-codex|local] [--ability-profile web-design] [--context-guard-enabled true|false] [--context-guard-threshold-pct <number>] [--marketplace-skills true|false] [--force-marketplace-skills]`
-- `kaizen onboard [--workspace <dir>] [--workspace-location desktop|documents|home|custom] [--model openai-codex|local] [--ability-profile web-design] [--interaction terminal|localhost] [--context-guard-enabled true|false] [--context-guard-threshold-pct <number>] [--marketplace-skills true|false] [--force-marketplace-skills]`
+- If run mode is `manual`, Kaizen launches `kaizen start`.
+- If run mode is `always-on`, Kaizen installs/starts service and prints `kaizen service status`.
+
+## Core commands
+
+- `kaizen onboard`
+- `kaizen setup`
+- `kaizen start`
+- `kaizen chat`
+- `kaizen ui`
 - `kaizen status`
-- `kaizen auth status`
-- `kaizen auth login --provider openai-codex`
-- `kaizen start` (uses configured interaction mode)
-- `kaizen chat` (terminal chat mode)
-- `kaizen ui` (localhost mode on port 3000)
-- `kaizen init <project-name> [--focus <mode>]`
+- `kaizen init <projectName>`
 
-## Recommended v1 flow
+Service commands:
+
+- `kaizen service run`
+- `kaizen service install`
+- `kaizen service start`
+- `kaizen service stop`
+- `kaizen service restart`
+- `kaizen service status`
+- `kaizen service uninstall`
+
+Telegram commands:
+
+- `kaizen channels telegram setup`
+- `kaizen channels telegram status`
+- `kaizen channels telegram disable`
+- `kaizen channels telegram test --to <chatId> --message <text>`
+
+## Onboarding flags
+
+`kaizen onboard` supports:
+
+- `--run-mode manual|always-on`
+- `--enable-telegram true|false`
+- `--telegram-bot-token <token>`
+- `--telegram-allow-from <csv>`
+- `--accept-always-on-risk true`
+
+Non-interactive always-on requires `--accept-always-on-risk true`.
+
+## Configuration
+
+Config path:
+
+- `~/.kaizen/kaizen.json`
+
+Schema version:
+
+- `version: 3`
+
+Major sections:
+
+- `defaults.runMode`
+- `channels.telegram`
+- `service`
+
+Older v2 configs are automatically normalized to v3 on read.
+
+## Build from source
 
 ```bash
 git clone https://github.com/Hainrixz/kaizen.git
 cd kaizen
 corepack pnpm install
-corepack pnpm start onboard
-corepack pnpm start start
+corepack pnpm build
+corepack pnpm start
 ```
 
-## Next build steps
+## Docs
 
-1. Build the Kaizen auth/onboarding flow into dedicated modules.
-2. Expand guided commands into focused worker tasks.
-3. Add agent profiles (landing page, app, web app, mobile-first UI).
-4. Build a non-terminal UX wrapper so users can run focused tasks with less CLI friction.
+- `docs/ARCHITECTURE_NOTES.md`
+- `docs/RUNTIME_MODES.md`
+- `docs/TELEGRAM_CHANNEL.md`
+- `docs/SECURITY_DISCLAIMER.md`

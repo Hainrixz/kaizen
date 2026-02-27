@@ -123,3 +123,24 @@ export function buildContextGuardPromptBlock(params: {
 
   return lines.join("\n");
 }
+
+export function appendSessionMemorySnapshot(params: {
+  memoryPath: string;
+  userMessage: string;
+  assistantSummary: string;
+}) {
+  const now = new Date().toISOString();
+  const lines = [
+    "",
+    `### Turn Snapshot (${now})`,
+    "",
+    "User message:",
+    params.userMessage || "(empty)",
+    "",
+    "Assistant summary:",
+    params.assistantSummary || "(empty)",
+  ];
+
+  fs.mkdirSync(path.dirname(params.memoryPath), { recursive: true });
+  fs.appendFileSync(params.memoryPath, `${lines.join("\n")}\n`, "utf8");
+}

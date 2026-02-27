@@ -7,17 +7,13 @@
  */
 
 import { spawn } from "node:child_process";
-import fs from "node:fs";
-import path from "node:path";
 import {
   isUnsafeWorkspaceInput,
   readConfig,
   resolveWorkspacePath,
 } from "../config.js";
-import {
-  buildContextGuardPromptBlock,
-  ensureSessionMemoryFile,
-} from "../context-guard.js";
+import { ensureSessionMemoryFile } from "../context-guard.js";
+import { buildKaizenPrompt } from "../prompt.js";
 
 type RunResult = {
   ok: boolean;
@@ -29,111 +25,6 @@ type ChatOptions = {
   workspace?: string;
   dryRun?: boolean;
 };
-
-function readTextFileIfExists(filePath: string) {
-  if (!fs.existsSync(filePath)) {
-    return null;
-  }
-  try {
-    return fs.readFileSync(filePath, "utf8").trim();
-  } catch {
-    return null;
-  }
-}
-
-function buildKaizenPrompt(params: {
-  workspace: string;
-  abilityProfile: string;
-  contextGuardEnabled: boolean;
-  contextGuardThresholdPct: number;
-  memoryPath: string;
-}) {
-  const {
-    workspace,
-    abilityProfile,
-    contextGuardEnabled,
-    contextGuardThresholdPct,
-    memoryPath,
-  } = params;
-  const profileDir = path.join(
-    workspace,
-    ".kaizen",
-    "profiles",
-    abilityProfile,
-  );
-  const profilePromptFile = path.join(
-    profileDir,
-    "SYSTEM_PROMPT.md",
-  );
-  const walkthroughFile = path.join(profileDir, "WALKTHROUGH.md");
-  const skillsIndexFile = path.join(profileDir, "SKILLS_INDEX.md");
-  const workflowFile = path.join(profileDir, "WORKFLOW.md");
-  const outputTemplateFile = path.join(profileDir, "OUTPUT_TEMPLATE.md");
-  const marketplaceSkillsFile = path.join(profileDir, "MARKETPLACE_SKILLS.md");
-
-  const profilePromptContents = readTextFileIfExists(profilePromptFile);
-  const walkthroughContents = readTextFileIfExists(walkthroughFile);
-  const skillsIndexContents = readTextFileIfExists(skillsIndexFile);
-  const workflowContents = readTextFileIfExists(workflowFile);
-  const outputTemplateContents = readTextFileIfExists(outputTemplateFile);
-  const marketplaceSkillsContents = readTextFileIfExists(marketplaceSkillsFile);
-
-  const promptSections: string[] = ["You are Kaizen."];
-  const usedFiles: string[] = [];
-
-  if (profilePromptContents) {
-    promptSections.push(`Profile instructions loaded from ${profilePromptFile}:`);
-    promptSections.push(profilePromptContents);
-    usedFiles.push(profilePromptFile);
-  } else {
-    promptSections.push(
-      `Stay focused on the ${abilityProfile} profile and ship production-ready web UI output.`,
-    );
-  }
-
-  if (walkthroughContents) {
-    promptSections.push(`Guided walkthrough loaded from ${walkthroughFile}:`);
-    promptSections.push(walkthroughContents);
-    usedFiles.push(walkthroughFile);
-  }
-
-  if (skillsIndexContents) {
-    promptSections.push(`Skills index loaded from ${skillsIndexFile}:`);
-    promptSections.push(skillsIndexContents);
-    usedFiles.push(skillsIndexFile);
-  }
-
-  if (workflowContents) {
-    promptSections.push(`Workflow loaded from ${workflowFile}:`);
-    promptSections.push(workflowContents);
-    usedFiles.push(workflowFile);
-  }
-
-  if (outputTemplateContents) {
-    promptSections.push(`Output template loaded from ${outputTemplateFile}:`);
-    promptSections.push(outputTemplateContents);
-    usedFiles.push(outputTemplateFile);
-  }
-
-  if (marketplaceSkillsContents) {
-    promptSections.push(`Marketplace skills catalog loaded from ${marketplaceSkillsFile}:`);
-    promptSections.push(marketplaceSkillsContents);
-    usedFiles.push(marketplaceSkillsFile);
-  }
-
-  promptSections.push(
-    buildContextGuardPromptBlock({
-      enabled: contextGuardEnabled,
-      thresholdPct: contextGuardThresholdPct,
-      memoryPath,
-    }),
-  );
-
-  return {
-    prompt: promptSections.join("\n\n"),
-    usedFiles,
-  };
-}
 
 function runProcess(command: string, args: string[]): Promise<RunResult> {
   return new Promise<RunResult>((resolve) => {
@@ -194,7 +85,7 @@ export async function chatCommand(options: ChatOptions = {}) {
     contextGuardThresholdPct,
     memoryPath: memory.memoryPath,
   });
-  const prompt = promptResult.prompt;
+
   const args: string[] = [];
 
   if (modelProvider === "local") {
@@ -205,14 +96,16 @@ export async function chatCommand(options: ChatOptions = {}) {
   }
 
   args.push("--cd", workspace);
-  args.push(prompt);
+  args.push(promptResult.prompt);
 
   if (options.dryRun) {
     const previewArgs = [...args.slice(0, -1), "<kaizen-prompt>"];
     console.log("");
     console.log("Terminal chat dry run:");
     console.log(`codex ${previewArgs.join(" ")}`);
-    console.log(`Context guard: ${contextGuardEnabled ? "enabled" : "disabled"} (${memory.thresholdPct}%)`);
+    console.log(
+      `Context guard: ${contextGuardEnabled ? "enabled" : "disabled"} (${memory.thresholdPct}%)`,
+    );
     console.log(`Memory file: ${memory.memoryPath}`);
     if (promptResult.usedFiles.length > 0) {
       console.log("Prompt files:");
@@ -225,7 +118,9 @@ export async function chatCommand(options: ChatOptions = {}) {
 
   console.log("");
   console.log(`Launching Kaizen terminal chat (${abilityProfile})...`);
-  console.log(`Context guard: ${contextGuardEnabled ? "enabled" : "disabled"} (${memory.thresholdPct}%)`);
+  console.log(
+    `Context guard: ${contextGuardEnabled ? "enabled" : "disabled"} (${memory.thresholdPct}%)`,
+  );
   console.log(`Memory file: ${memory.memoryPath}`);
   if (promptResult.usedFiles.length > 0) {
     console.log("Prompt files:");
@@ -233,6 +128,7 @@ export async function chatCommand(options: ChatOptions = {}) {
       console.log(`- ${file}`);
     }
   }
+
   const result = await runProcess("codex", args);
   if (!result.ok && result.errorMessage) {
     console.log("");

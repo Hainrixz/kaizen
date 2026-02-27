@@ -4,76 +4,76 @@ Last verified: **February 27, 2026**
 
 ## Purpose
 
-This file keeps Kaizen aligned to its own architecture as a focused project-building agent platform.
+Kaizen is a focused project-builder agent that keeps onboarding simple while allowing an optional service runtime and channel integrations.
 
-## Core architecture
+## Runtime architecture
 
-1. Thin runtime wrapper
-- `kaizen.mjs` is a small bootstrap entrypoint only.
+1. CLI entrypoint
+- `kaizen.mjs` is the runtime bootstrap.
+- `src/entry.ts` registers all commands and command groups.
 
-2. TypeScript-first core
-- All product logic lives under `src/**/*.ts`.
+2. Config core
+- `src/config.ts` owns schema normalization and persistence.
+- Config file: `~/.kaizen/kaizen.json`.
+- Current schema: `version: 3`.
+- v2 configs are auto-migrated during reads.
 
-3. Built runtime output
-- Build output goes to `dist/`.
-- Runtime executes `dist/entry.js`.
-
-4. Guided onboarding
-- First-run flow is `kaizen onboard`.
-- Onboarding sets:
-  - model provider
-  - ability profile
-  - interaction mode
-  - default workspace location
-  - context guard configuration
-  - ability skill-pack installation paths
-
-5. Installer-first distribution
-- One-command install scripts:
-  - `install.sh` for macOS/Linux
-  - `install.ps1` for Windows
-- Primary distribution command is served from the branded domain:
-  - `https://tododeia.com/install.sh`
-  - `https://tododeia.com/install.ps1`
-- Domain installer bootstraps the latest Kaizen installer from GitHub.
-
-6. Context continuity
-- Context guard is enabled by default with a 65% threshold.
-- Session compression writes persistent markdown memory under `.kaizen/memory/`.
-
-7. Ability skill packs
-- Each ability installs a model-agnostic pack composed of:
+3. Ability prompt stack
+- `src/prompt.ts` builds the execution prompt from profile files:
   - `SYSTEM_PROMPT.md`
   - `WALKTHROUGH.md`
   - `SKILLS_INDEX.md`
   - `WORKFLOW.md`
   - `OUTPUT_TEMPLATE.md`
   - `MARKETPLACE_SKILLS.md`
-  - `skills/*.md` execution docs
-- Onboarding optionally syncs curated `skills.sh` dependencies into workspace `.agents/skills`.
-- Runtime prompt loading includes these files so behavior remains consistent across providers.
+- Context guard rules are appended through `src/context-guard.ts`.
 
-## Product direction
+4. Interactive runtime
+- `kaizen start` launches interactive mode.
+- `kaizen chat` runs terminal interaction.
+- `kaizen ui` runs localhost mode.
 
-- Keep Kaizen focused and profile-driven.
-- Expand capabilities by adding profiles, not by bloating a single generic flow.
-- Keep setup simple so non-technical users can start fast.
+5. Service runtime (optional always-on)
+- Service command group: `kaizen service ...`.
+- `src/service/manager.ts` resolves platform implementation.
+- Platform backends:
+  - `src/service/launchd.ts` (macOS)
+  - `src/service/systemd.ts` (Linux user mode)
+  - `src/service/schtasks.ts` (Windows task scheduler)
+- Worker entry: `src/service/worker.ts`.
 
-## Current status checklist
+6. Channel runtime (Telegram v1)
+- Commands under `kaizen channels telegram ...`.
+- API wrapper: `src/channels/telegram/api.ts`.
+- Offset persistence: `src/channels/telegram/state.ts`.
+- Poll loop and queue: `src/channels/telegram/poller.ts`.
+- Scope is DM-only with numeric allowlist enforcement.
 
-- [x] TypeScript core migration
-- [x] Compiled runtime pipeline (`dist/entry.js`)
-- [x] One-command install scripts
-- [x] Guided onboarding
-- [x] Context guard + markdown memory trail
-- [x] Web-design skill pack with workflow and execution docs
-- [x] Guided walkthrough + marketplace skills sync for web-design
-- [ ] Rich local UI chat shell (future)
-- [ ] Expanded profile marketplace (future)
+7. Model turn execution
+- Non-interactive turns use `src/engine/codex-turn.ts`.
+- Runtime calls `codex exec` with workspace control and output capture.
 
-## Guardrails
+## Runtime files
 
-- Keep `kaizen.mjs` thin.
-- Keep logic inside TypeScript modules in `src/`.
-- Keep onboarding short and clear.
-- Keep public docs brand-pure to Kaizen only.
+- `~/.kaizen/kaizen.json` (main config)
+- `~/.kaizen/run/service.pid` (worker pid)
+- `~/.kaizen/run/codex-last-message.txt` (last non-interactive reply)
+- `~/.kaizen/state/telegram/update-offset-default.json` (telegram update offset)
+- `<workspace>/.kaizen/memory/<ability>.md` (context continuity memory)
+
+## Design defaults
+
+- Run mode default: `manual`.
+- Always-on mode is opt-in only.
+- Telegram is disabled by default.
+- Context guard default threshold: `65%`.
+- One model execution queue per worker for deterministic workspace edits.
+
+## Installer model
+
+- `install.sh` (macOS/Linux) and `install.ps1` (Windows).
+- Installs global `kaizen` launcher.
+- Auto-onboarding and auto-launch can be disabled.
+- Post-onboarding behavior is run-mode aware:
+  - manual -> `kaizen start`
+  - always-on -> `kaizen service install/start/status`

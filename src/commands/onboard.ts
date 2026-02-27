@@ -20,6 +20,12 @@ import {
   normalizeLocalRuntime,
   normalizeMarketplaceSkillsEnabled,
   normalizeModelProvider,
+  normalizeRunMode,
+  normalizeTelegramAllowFrom,
+  normalizeTelegramBotToken,
+  normalizeTelegramEnabled,
+  normalizeTelegramLongPollTimeoutSec,
+  normalizeTelegramPollIntervalMs,
   readConfig,
   resolveConfigPath,
   resolveWorkspacePath,
@@ -28,6 +34,7 @@ import {
 import { authLoginCommand } from "./auth.js";
 import { installAbilityProfile } from "../mission-pack.js";
 import { installMarketplaceSkillsForAbility } from "../skills-marketplace.js";
+import { installAndStartServiceForAlwaysOnMode } from "./service.js";
 
 const MODEL_CHOICE_OPENAI = "openai-codex";
 const MODEL_CHOICE_LOCAL_OLLAMA = "local-ollama";
@@ -48,18 +55,22 @@ const INTERACTION_CHOICES = [
   { value: "localhost", label: "Localhost UI (port 3000)" },
 ];
 
+const RUN_MODE_CHOICES = [
+  {
+    value: "manual",
+    label: "Manual (default) - stops when terminal closes",
+  },
+  {
+    value: "always-on",
+    label: "Always-on (service mode) - keeps running in background",
+  },
+];
+
 const WORKSPACE_LOCATION_DESKTOP = "desktop";
 const WORKSPACE_LOCATION_DOCUMENTS = "documents";
 const WORKSPACE_LOCATION_HOME = "home";
 const WORKSPACE_LOCATION_CUSTOM = "custom";
 const WORKSPACE_FOLDER_NAME = "kaizen-workspace";
-
-const WORKSPACE_LOCATION_CHOICES = [
-  { value: WORKSPACE_LOCATION_DESKTOP, label: "Desktop" },
-  { value: WORKSPACE_LOCATION_DOCUMENTS, label: "Documents" },
-  { value: WORKSPACE_LOCATION_HOME, label: "Home folder" },
-  { value: WORKSPACE_LOCATION_CUSTOM, label: "Custom path" },
-];
 
 function normalizeWorkspaceLocation(rawValue: unknown) {
   if (typeof rawValue !== "string" || rawValue.trim().length === 0) {
@@ -101,7 +112,7 @@ function resolveWorkspaceLocationDefault(workspace: string) {
   return WORKSPACE_LOCATION_CUSTOM;
 }
 
-function formatHomePath(targetPath) {
+function formatHomePath(targetPath: string) {
   const home = os.homedir();
   if (targetPath === home) {
     return "~";
@@ -112,18 +123,25 @@ function formatHomePath(targetPath) {
   return targetPath;
 }
 
-function findDefaultChoiceIndex(choices, defaultValue) {
+function findDefaultChoiceIndex(
+  choices: Array<{ value: string; label: string }>,
+  defaultValue: string,
+) {
   const index = choices.findIndex((choice) => choice.value === defaultValue);
   return index >= 0 ? index : 0;
 }
 
-function cancelOnboarding(currentConfig) {
+function cancelOnboarding(currentConfig: any) {
   console.log("");
   console.log("Onboarding cancelled. No changes were written.");
   return currentConfig;
 }
 
-async function askChoice(label, choices, defaultValue) {
+async function askChoice(
+  label: string,
+  choices: Array<{ value: string; label: string }>,
+  defaultValue: string,
+) {
   const defaultIndex = findDefaultChoiceIndex(choices, defaultValue);
   const selection = await select({
     message: label,
@@ -133,10 +151,10 @@ async function askChoice(label, choices, defaultValue) {
   if (isCancel(selection)) {
     return null;
   }
-  return selection;
+  return String(selection);
 }
 
-async function askPath(label, fallbackPath) {
+async function askPath(label: string, fallbackPath: string) {
   const rawPath = await text({
     message: label,
     defaultValue: fallbackPath,
@@ -159,7 +177,19 @@ async function askPath(label, fallbackPath) {
   return normalized || fallbackPath;
 }
 
-async function askYesNo(label, defaultValue = false) {
+async function askText(label: string, defaultValue = "") {
+  const response = await text({
+    message: label,
+    defaultValue,
+    placeholder: defaultValue,
+  });
+  if (isCancel(response)) {
+    return null;
+  }
+  return String(response ?? "").trim();
+}
+
+async function askYesNo(label: string, defaultValue = false) {
   const response = await confirm({
     message: label,
     initialValue: defaultValue,
@@ -170,17 +200,29 @@ async function askYesNo(label, defaultValue = false) {
   return Boolean(response);
 }
 
-function resolveModelChoiceDefault(modelProvider, localRuntime) {
+function resolveModelChoiceDefault(modelProvider: string, localRuntime: string) {
   if (modelProvider !== "local") {
     return MODEL_CHOICE_OPENAI;
   }
   return localRuntime === "lmstudio" ? MODEL_CHOICE_LOCAL_LMSTUDIO : MODEL_CHOICE_LOCAL_OLLAMA;
 }
 
+function parseAcceptAlwaysOnRisk(options: any) {
+  if (typeof options.acceptAlwaysOnRisk === "boolean") {
+    return options.acceptAlwaysOnRisk;
+  }
+  if (typeof options.acceptAlwaysOnRisk === "string") {
+    const normalized = options.acceptAlwaysOnRisk.trim().toLowerCase();
+    return normalized === "true" || normalized === "1" || normalized === "yes";
+  }
+  return false;
+}
+
 export async function onboardCommand(options: any = {}) {
   const current = readConfig();
   const configPath = resolveConfigPath();
   const nonInteractive = Boolean(options.nonInteractive);
+
   const hasWorkspaceOverride =
     typeof options.workspace === "string" && options.workspace.trim().length > 0;
   const workspaceLocationFromOption = normalizeWorkspaceLocation(options.workspaceLocation);
@@ -190,9 +232,7 @@ export async function onboardCommand(options: any = {}) {
     options.workspaceLocation.trim().length > 0 &&
     !workspaceLocationFromOption
   ) {
-    throw new Error(
-      "Invalid workspace location. Use: desktop, documents, home, or custom.",
-    );
+    throw new Error("Invalid workspace location. Use: desktop, documents, home, or custom.");
   }
 
   if (hasWorkspaceOverride && isUnsafeWorkspaceInput(options.workspace)) {
@@ -206,18 +246,16 @@ export async function onboardCommand(options: any = {}) {
     workspaceLocationFromOption === WORKSPACE_LOCATION_CUSTOM &&
     !hasWorkspaceOverride
   ) {
-    throw new Error(
-      "Non-interactive mode needs --workspace when --workspace-location custom is used.",
-    );
+    throw new Error("Non-interactive mode needs --workspace when --workspace-location custom is used.");
   }
 
   let workspace =
     hasWorkspaceOverride
       ? resolveWorkspacePath(options.workspace, current.defaults.workspace)
-      : workspaceLocationFromOption &&
-          workspaceLocationFromOption !== WORKSPACE_LOCATION_CUSTOM
+      : workspaceLocationFromOption && workspaceLocationFromOption !== WORKSPACE_LOCATION_CUSTOM
         ? resolveWorkspaceFromLocation(workspaceLocationFromOption)
-      : current.defaults.workspace;
+        : current.defaults.workspace;
+
   let modelProvider = normalizeModelProvider(
     options.model ?? options.modelProvider ?? current.defaults.modelProvider,
   );
@@ -228,23 +266,60 @@ export async function onboardCommand(options: any = {}) {
   let interactionMode = normalizeInteractionMode(
     options.interaction ?? current.defaults.interactionMode,
   );
+  let runMode = normalizeRunMode(options.runMode ?? current.defaults.runMode);
   let authProvider = normalizeAuthProvider(options.authProvider ?? current.defaults.authProvider);
+
   const contextGuardEnabled = normalizeContextGuardEnabled(
     options.contextGuardEnabled ?? current.defaults.contextGuardEnabled,
   );
   const contextGuardThresholdPct = normalizeContextGuardThresholdPct(
     options.contextGuardThresholdPct ?? current.defaults.contextGuardThresholdPct,
   );
+
   const hasMarketplaceSkillsOption = options.marketplaceSkills !== undefined;
   let marketplaceSkillsEnabled = normalizeMarketplaceSkillsEnabled(
     options.marketplaceSkills ?? current.defaults.marketplaceSkillsEnabled,
   );
   const forceMarketplaceSkills = Boolean(options.forceMarketplaceSkills);
+
   const hasExplicitLoginChoice = Boolean(options.login) || Boolean(options.skipLogin);
   let runLogin = Boolean(options.login);
 
+  let telegramEnabled =
+    options.enableTelegram !== undefined
+      ? normalizeTelegramEnabled(options.enableTelegram)
+      : Boolean(current.channels?.telegram?.enabled);
+  let telegramBotToken = normalizeTelegramBotToken(
+    options.telegramBotToken ?? current.channels?.telegram?.botToken,
+  );
+  let telegramAllowFrom = normalizeTelegramAllowFrom(
+    options.telegramAllowFrom ?? current.channels?.telegram?.allowFrom,
+  );
+  const telegramPollIntervalMs = normalizeTelegramPollIntervalMs(
+    options.telegramPollIntervalMs ?? current.channels?.telegram?.pollIntervalMs,
+  );
+  const telegramLongPollTimeoutSec = normalizeTelegramLongPollTimeoutSec(
+    options.telegramLongPollTimeoutSec ?? current.channels?.telegram?.longPollTimeoutSec,
+  );
+
+  let alwaysOnRiskAccepted = parseAcceptAlwaysOnRisk(options) || Boolean(current.service?.riskAcceptedAt);
+
   if (modelProvider === "local") {
     runLogin = false;
+  }
+
+  if (nonInteractive) {
+    if (runMode === "always-on" && !alwaysOnRiskAccepted) {
+      throw new Error("Non-interactive always-on mode requires --accept-always-on-risk true.");
+    }
+    if (telegramEnabled) {
+      if (!telegramBotToken) {
+        throw new Error("Non-interactive Telegram setup requires --telegram-bot-token.");
+      }
+      if (telegramAllowFrom.length === 0) {
+        throw new Error("Non-interactive Telegram setup requires --telegram-allow-from with numeric IDs.");
+      }
+    }
   }
 
   if (!nonInteractive) {
@@ -303,6 +378,27 @@ export async function onboardCommand(options: any = {}) {
     }
     interactionMode = normalizeInteractionMode(selectedInteractionMode);
 
+    const selectedRunMode = await askChoice(
+      "Choose runtime mode",
+      RUN_MODE_CHOICES,
+      runMode,
+    );
+    if (!selectedRunMode) {
+      return cancelOnboarding(current);
+    }
+    runMode = normalizeRunMode(selectedRunMode);
+
+    if (runMode === "always-on") {
+      console.log("");
+      console.log("Always-on mode keeps Kaizen active after terminal closes.");
+      console.log("Use only on trusted machines and keep channel allowlists strict.");
+      const acceptedRisk = await askYesNo("Accept always-on runtime risk?", alwaysOnRiskAccepted);
+      if (acceptedRisk === null || !acceptedRisk) {
+        return cancelOnboarding(current);
+      }
+      alwaysOnRiskAccepted = true;
+    }
+
     if (!hasWorkspaceOverride) {
       const defaultWorkspaceLocation =
         workspaceLocationFromOption ?? resolveWorkspaceLocationDefault(workspace);
@@ -333,10 +429,7 @@ export async function onboardCommand(options: any = {}) {
       }
 
       if (locationChoice === WORKSPACE_LOCATION_CUSTOM) {
-        const workspaceInput = await askPath(
-          "Workspace path",
-          formatHomePath(workspace),
-        );
+        const workspaceInput = await askPath("Workspace path", formatHomePath(workspace));
         if (!workspaceInput) {
           return cancelOnboarding(current);
         }
@@ -346,13 +439,46 @@ export async function onboardCommand(options: any = {}) {
       }
     }
 
+    const enableTelegram = await askYesNo(
+      "Enable Telegram channel in this profile?",
+      telegramEnabled,
+    );
+    if (enableTelegram === null) {
+      return cancelOnboarding(current);
+    }
+    telegramEnabled = enableTelegram;
+
+    if (telegramEnabled) {
+      const tokenInput = await askText(
+        "Telegram bot token",
+        telegramBotToken ?? "",
+      );
+      if (tokenInput === null) {
+        return cancelOnboarding(current);
+      }
+      telegramBotToken = normalizeTelegramBotToken(tokenInput);
+
+      const allowFromInput = await askText(
+        "Telegram allowFrom IDs (comma separated numeric IDs)",
+        telegramAllowFrom.join(","),
+      );
+      if (allowFromInput === null) {
+        return cancelOnboarding(current);
+      }
+      telegramAllowFrom = normalizeTelegramAllowFrom(allowFromInput);
+
+      if (!telegramBotToken) {
+        throw new Error("Telegram bot token is required when Telegram is enabled.");
+      }
+      if (telegramAllowFrom.length === 0) {
+        throw new Error("Telegram allowFrom must include at least one numeric ID.");
+      }
+    }
+
     if (modelProvider === "openai-codex") {
       authProvider = "openai-codex";
       if (!hasExplicitLoginChoice) {
-        const shouldRunLogin = await askYesNo(
-          "Connect OpenAI Codex OAuth now?",
-          true,
-        );
+        const shouldRunLogin = await askYesNo("Connect OpenAI Codex OAuth now?", true);
         if (shouldRunLogin === null) {
           return cancelOnboarding(current);
         }
@@ -370,7 +496,12 @@ export async function onboardCommand(options: any = {}) {
     }
     console.log(`- ability profile: ${abilityProfile}`);
     console.log(`- interaction mode: ${interactionMode}`);
+    console.log(`- run mode: ${runMode}`);
     console.log(`- workspace: ${workspace}`);
+    console.log(`- telegram: ${telegramEnabled ? "enabled" : "disabled"}`);
+    if (telegramEnabled) {
+      console.log(`- telegram allowFrom: ${telegramAllowFrom.join(", ")}`);
+    }
     console.log(`- run OAuth login now: ${runLogin ? "yes" : "no"}`);
     console.log(
       `- context guard: ${contextGuardEnabled ? `enabled (${contextGuardThresholdPct}%)` : "disabled"}`,
@@ -400,6 +531,7 @@ export async function onboardCommand(options: any = {}) {
     interactionMode,
     contextGuardThresholdPct,
   });
+
   let marketplaceSkillsResult = null;
   if (marketplaceSkillsEnabled) {
     console.log("");
@@ -422,8 +554,9 @@ export async function onboardCommand(options: any = {}) {
   }
 
   const nextConfig = {
-    version: 2,
+    version: 3,
     defaults: {
+      ...current.defaults,
       workspace,
       focus: "web-app",
       mission: abilityProfile,
@@ -432,6 +565,7 @@ export async function onboardCommand(options: any = {}) {
       localRuntime,
       interactionMode,
       authProvider,
+      runMode,
       contextGuardEnabled,
       contextGuardThresholdPct,
       marketplaceSkillsEnabled,
@@ -439,6 +573,25 @@ export async function onboardCommand(options: any = {}) {
     auth: {
       provider: authProvider,
       lastLoginAt: current.auth?.lastLoginAt ?? null,
+    },
+    channels: {
+      ...current.channels,
+      telegram: {
+        enabled: telegramEnabled,
+        botToken: telegramEnabled ? telegramBotToken : current.channels?.telegram?.botToken ?? null,
+        allowFrom: telegramEnabled ? telegramAllowFrom : current.channels?.telegram?.allowFrom ?? [],
+        pollIntervalMs: telegramPollIntervalMs,
+        longPollTimeoutSec: telegramLongPollTimeoutSec,
+      },
+    },
+    service: {
+      installed: current.service?.installed ?? false,
+      runtime: "node",
+      riskAcceptedAt:
+        runMode === "always-on" && alwaysOnRiskAccepted
+          ? new Date().toISOString()
+          : current.service?.riskAcceptedAt ?? null,
+      lastKnownStatus: current.service?.lastKnownStatus ?? "unknown",
     },
     missions: {
       ...(current.missions ?? {}),
@@ -482,6 +635,10 @@ export async function onboardCommand(options: any = {}) {
     await authLoginCommand({ provider: authProvider });
   }
 
+  if (runMode === "always-on" && alwaysOnRiskAccepted) {
+    await installAndStartServiceForAlwaysOnMode();
+  }
+
   console.log("");
   console.log("Onboarding complete.");
   console.log(`Config: ${configPath}`);
@@ -492,6 +649,11 @@ export async function onboardCommand(options: any = {}) {
   }
   console.log(`Ability profile: ${nextConfig.defaults.abilityProfile}`);
   console.log(`Interaction mode: ${nextConfig.defaults.interactionMode}`);
+  console.log(`Run mode: ${nextConfig.defaults.runMode}`);
+  console.log(`Telegram: ${nextConfig.channels.telegram.enabled ? "enabled" : "disabled"}`);
+  if (nextConfig.channels.telegram.enabled) {
+    console.log(`Telegram allowFrom: ${nextConfig.channels.telegram.allowFrom.join(", ")}`);
+  }
   console.log(
     `Context guard: ${nextConfig.defaults.contextGuardEnabled ? `enabled (${nextConfig.defaults.contextGuardThresholdPct}%)` : "disabled"}`,
   );
