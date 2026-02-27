@@ -7,9 +7,9 @@
  */
 
 import http from "node:http";
-import { readConfig } from "../config.mjs";
+import { readConfig } from "../config.js";
 
-function renderUiHtml(config, port) {
+function renderUiHtml(config: any, port: number) {
   const abilityProfile = config.defaults.abilityProfile ?? "web-design";
   const modelProvider = config.defaults.modelProvider;
   const localRuntime =
@@ -49,7 +49,7 @@ function renderUiHtml(config, port) {
 </html>`;
 }
 
-export async function uiCommand(options = {}) {
+export async function uiCommand(options: any = {}) {
   const config = readConfig();
   const port = Number.isInteger(options.port) ? options.port : 3000;
 
@@ -70,9 +70,9 @@ export async function uiCommand(options = {}) {
     res.end(renderUiHtml(config, port));
   });
 
-  await new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
-    server.listen(port, "127.0.0.1", resolve);
+    server.listen(port, "127.0.0.1", () => resolve());
   });
 
   console.log("");

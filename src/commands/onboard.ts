@@ -21,9 +21,9 @@ import {
   resolveConfigPath,
   resolveWorkspacePath,
   writeConfig,
-} from "../config.mjs";
-import { authLoginCommand } from "./auth.mjs";
-import { installAbilityProfile } from "../mission-pack.mjs";
+} from "../config.js";
+import { authLoginCommand } from "./auth.js";
+import { installAbilityProfile } from "../mission-pack.js";
 
 const MODEL_CHOICE_OPENAI = "openai-codex";
 const MODEL_CHOICE_LOCAL_OLLAMA = "local-ollama";
@@ -115,7 +115,7 @@ function resolveModelChoiceDefault(modelProvider, localRuntime) {
   return localRuntime === "lmstudio" ? MODEL_CHOICE_LOCAL_LMSTUDIO : MODEL_CHOICE_LOCAL_OLLAMA;
 }
 
-export async function onboardCommand(options = {}) {
+export async function onboardCommand(options: any = {}) {
   const current = readConfig();
   const configPath = resolveConfigPath();
   const nonInteractive = Boolean(options.nonInteractive);

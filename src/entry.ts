@@ -9,17 +9,17 @@
 
 import fs from "node:fs";
 import { Command } from "commander";
-import { printStartupBanner } from "./banner.mjs";
-import { authLoginCommand, authStatusCommand } from "./commands/auth.mjs";
-import { chatCommand } from "./commands/chat.mjs";
-import { onboardCommand } from "./commands/onboard.mjs";
-import { setupCommand } from "./commands/setup.mjs";
-import { startCommand } from "./commands/start.mjs";
-import { statusCommand } from "./commands/status.mjs";
-import { uiCommand } from "./commands/ui.mjs";
-import { normalizeAuthProvider, normalizeFocus, readConfig } from "./config.mjs";
-import { generateStarterProject } from "./generator.mjs";
-import { verifySignatureIntegrity } from "./signature.mjs";
+import { printStartupBanner } from "./banner.js";
+import { authLoginCommand, authStatusCommand } from "./commands/auth.js";
+import { chatCommand } from "./commands/chat.js";
+import { onboardCommand } from "./commands/onboard.js";
+import { setupCommand } from "./commands/setup.js";
+import { startCommand } from "./commands/start.js";
+import { statusCommand } from "./commands/status.js";
+import { uiCommand } from "./commands/ui.js";
+import { normalizeAuthProvider, normalizeFocus, readConfig } from "./config.js";
+import { generateStarterProject } from "./generator.js";
+import { verifySignatureIntegrity } from "./signature.js";
 
 function readPackageVersion() {
   try {

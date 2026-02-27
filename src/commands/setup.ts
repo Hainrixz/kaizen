@@ -17,12 +17,12 @@ import {
   resolveConfigPath,
   resolveWorkspacePath,
   writeConfig,
-} from "../config.mjs";
-import { authLoginCommand } from "./auth.mjs";
-import { onboardCommand } from "./onboard.mjs";
-import { installAbilityProfile } from "../mission-pack.mjs";
+} from "../config.js";
+import { authLoginCommand } from "./auth.js";
+import { onboardCommand } from "./onboard.js";
+import { installAbilityProfile } from "../mission-pack.js";
 
-export async function setupCommand(options = {}) {
+export async function setupCommand(options: any = {}) {
   const runWizard = Boolean(options.wizard);
   const runNonInteractiveWizard = Boolean(options.nonInteractive);
 

@@ -6,15 +6,15 @@
  * ─────────────────────────────────────────────
  */
 
-import { runAuthLogin, runAuthStatus } from "../auth-provider.mjs";
-import { normalizeAuthProvider, readConfig, writeConfig } from "../config.mjs";
+import { runAuthLogin, runAuthStatus } from "../auth-provider.js";
+import { normalizeAuthProvider, readConfig, writeConfig } from "../config.js";
 
-function resolveProvider(rawProvider) {
+function resolveProvider(rawProvider?: string) {
   const config = readConfig();
   return normalizeAuthProvider(rawProvider ?? config.defaults.authProvider);
 }
 
-export async function authLoginCommand(options = {}) {
+export async function authLoginCommand(options: { provider?: string } = {}) {
   const provider = resolveProvider(options.provider);
 
   console.log("");
@@ -50,7 +50,7 @@ export async function authLoginCommand(options = {}) {
   return true;
 }
 
-export async function authStatusCommand(options = {}) {
+export async function authStatusCommand(options: { provider?: string } = {}) {
   const provider = resolveProvider(options.provider);
   const result = await runAuthStatus(provider);
 

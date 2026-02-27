@@ -19,7 +19,7 @@ function safeProjectDirName(name) {
     .replace(/^-+|-+$/g, "");
 }
 
-export function generateStarterProject(baseDir, rawName, options = {}) {
+export function generateStarterProject(baseDir: string, rawName: string, options: any = {}) {
   const normalized = safeProjectDirName(rawName || "my-kaizen-project");
   const targetDir = path.resolve(baseDir, normalized);
   const focus = typeof options.focus === "string" ? options.focus : "web-app";

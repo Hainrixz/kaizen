@@ -92,6 +92,7 @@ echo "[kaizen installer] installing dependencies..."
   cd "$KAIZEN_INSTALL_DIR"
   corepack enable >/dev/null 2>&1 || true
   corepack pnpm install --frozen-lockfile
+  corepack pnpm build
 )
 
 mkdir -p "$KAIZEN_BIN_DIR"

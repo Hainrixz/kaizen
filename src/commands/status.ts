@@ -6,7 +6,7 @@
  * ─────────────────────────────────────────────
  */
 
-import { readConfig, resolveConfigPath } from "../config.mjs";
+import { readConfig, resolveConfigPath } from "../config.js";
 
 export async function statusCommand() {
   const config = readConfig();

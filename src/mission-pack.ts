@@ -8,7 +8,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { resolveKaizenHome } from "./config.mjs";
+import { resolveKaizenHome } from "./config.js";
 
 const OUTPUT_SIGNATURE = "# Scaffolded with the Project Builder by @soyEnriqueRocha x @tododeia";
 

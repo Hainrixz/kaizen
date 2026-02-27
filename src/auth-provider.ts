@@ -10,8 +10,14 @@ import { spawn } from "node:child_process";
 
 export const SUPPORTED_AUTH_PROVIDERS = ["openai-codex"];
 
-function runProcess(command, args) {
-  return new Promise((resolve) => {
+type ProcessResult = {
+  ok: boolean;
+  code: number;
+  errorMessage: string | null;
+};
+
+function runProcess(command: string, args: string[]): Promise<ProcessResult> {
+  return new Promise<ProcessResult>((resolve) => {
     const child = spawn(command, args, {
       stdio: "inherit",
       shell: false,
@@ -44,7 +50,7 @@ function runProcess(command, args) {
   });
 }
 
-export async function runAuthLogin(provider) {
+export async function runAuthLogin(provider: string): Promise<ProcessResult> {
   if (provider !== "openai-codex") {
     return {
       ok: false,
@@ -56,7 +62,7 @@ export async function runAuthLogin(provider) {
   return runProcess("codex", ["login"]);
 }
 
-export async function runAuthStatus(provider) {
+export async function runAuthStatus(provider: string): Promise<ProcessResult> {
   if (provider !== "openai-codex") {
     return {
       ok: false,

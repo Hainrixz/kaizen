@@ -6,10 +6,12 @@ Kaizen is a focused project-builder agent workspace with guided, task-oriented w
 
 V1 is profile-driven and starts with one ability profile: **web-design**.
 
+Architecture notes: see `docs/ARCHITECTURE_NOTES.md`.
+
 ## Current status
 
-- Separate workspace created at `/Users/mhenry/Desktop/Kaizen`
-- First runnable CLI scaffold added in `src/cli.mjs`
+- Project scaffold is ready for local or remote install
+- First runnable CLI scaffold added in `src/entry.ts`
 - Watermark/signature blueprint integrated from `BLUEPRINT.md`
 - Onboarding flow now asks for:
   - model provider (`openai-codex` or `local`)
@@ -19,14 +21,17 @@ V1 is profile-driven and starts with one ability profile: **web-design**.
 ## Quick start
 
 ```bash
-cd /Users/mhenry/Desktop/Kaizen
+git clone https://github.com/Hainrixz/kaizen.git
+cd kaizen
 corepack pnpm install
 corepack pnpm start
 # or:
 corepack pnpm start onboard
+# dev mode (runs TypeScript without build):
+corepack pnpm dev
 ```
 
-## One-command install (OpenClaw style)
+## One-command install
 
 macOS + Linux:
 
@@ -63,7 +68,8 @@ kaizen start
 ## Recommended v1 flow
 
 ```bash
-cd /Users/mhenry/Desktop/Kaizen
+git clone https://github.com/Hainrixz/kaizen.git
+cd kaizen
 corepack pnpm install
 corepack pnpm start onboard
 corepack pnpm start start

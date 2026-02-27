@@ -11,7 +11,7 @@ Build a focused worker-agent platform that:
 ## Step-by-step build sequence
 
 1. Bootstrap CLI foundation
-- Done: `src/cli.mjs`, banner, signature integrity checks, and starter generator.
+- Done: `src/entry.ts` TypeScript entry, `dist/` build pipeline, banner, signature integrity checks, and starter generator.
 
 2. Onboarding and auth layer
 - Initial command flow implemented: `setup`, `onboard`, `status`, `start`, `chat`, `ui`, `init`.

@@ -6,11 +6,11 @@
  * ─────────────────────────────────────────────
  */
 
-import { chatCommand } from "./chat.mjs";
-import { uiCommand } from "./ui.mjs";
-import { normalizeInteractionMode, readConfig } from "../config.mjs";
+import { chatCommand } from "./chat.js";
+import { uiCommand } from "./ui.js";
+import { normalizeInteractionMode, readConfig } from "../config.js";
 
-export async function startCommand(options = {}) {
+export async function startCommand(options: any = {}) {
   const config = readConfig();
   const interactionMode = normalizeInteractionMode(
     options.interaction ?? config.defaults.interactionMode,

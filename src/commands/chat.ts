@@ -13,9 +13,20 @@ import {
   isUnsafeWorkspaceInput,
   readConfig,
   resolveWorkspacePath,
-} from "../config.mjs";
+} from "../config.js";
 
-function buildKaizenPrompt(workspace, abilityProfile) {
+type RunResult = {
+  ok: boolean;
+  code: number;
+  errorMessage: string | null;
+};
+
+type ChatOptions = {
+  workspace?: string;
+  dryRun?: boolean;
+};
+
+function buildKaizenPrompt(workspace: string, abilityProfile: string) {
   const profilePromptFile = path.join(
     workspace,
     ".kaizen",
@@ -31,8 +42,8 @@ function buildKaizenPrompt(workspace, abilityProfile) {
   return `You are Kaizen. Stay focused on the ${abilityProfile} profile and ship production-ready web UI output.`;
 }
 
-function runProcess(command, args) {
-  return new Promise((resolve) => {
+function runProcess(command: string, args: string[]): Promise<RunResult> {
+  return new Promise<RunResult>((resolve) => {
     const child = spawn(command, args, { stdio: "inherit" });
     child.on("error", (error) => {
       resolve({
@@ -59,7 +70,7 @@ function runProcess(command, args) {
   });
 }
 
-export async function chatCommand(options = {}) {
+export async function chatCommand(options: ChatOptions = {}) {
   if (
     typeof options.workspace === "string" &&
     options.workspace.trim().length > 0 &&
@@ -77,7 +88,7 @@ export async function chatCommand(options = {}) {
   const localRuntime = config.defaults.localRuntime;
 
   const prompt = buildKaizenPrompt(workspace, abilityProfile);
-  const args = [];
+  const args: string[] = [];
 
   if (modelProvider === "local") {
     args.push("--oss");
