@@ -23,17 +23,48 @@ Kaizen is a focused project-builder agent that keeps onboarding simple while all
   - `SYSTEM_PROMPT.md`
   - `WALKTHROUGH.md`
   - `SKILLS_INDEX.md`
+  - `DESIGN_SKILLS.md`
   - `WORKFLOW.md`
   - `OUTPUT_TEMPLATE.md`
   - `MARKETPLACE_SKILLS.md`
 - Context guard rules are appended through `src/context-guard.ts`.
 
-4. Interactive runtime
+4. Design skill pack layer
+- Stored under `docs/design-skill-pack/`.
+- Mirrors design-only sources from MakeSomething and trusted `skills.sh` sources.
+- Keeps Kaizen core runtime unchanged while adding premium UI guidance.
+- Source manifest: `docs/design-skill-pack/MIRROR_MANIFEST.json`.
+
+5. Interactive runtime
 - `kaizen start` launches interactive mode.
 - `kaizen chat` runs terminal interaction.
-- `kaizen ui` runs localhost mode.
+- `kaizen ui` runs localhost mode on top of the control UI server.
+- `kaizen uninstall` performs mode-based full uninstall (`minimal|standard|deep`).
+- `kaizen onboard` and `kaizen setup --wizard` trigger post-setup auto-start by default.
+- Auto-start fallback prints a manual start command without failing setup.
 
-5. Service runtime (optional always-on)
+6. Local Control UI (browser)
+- UI package: `ui/` (Vite + Lit + TypeScript).
+- Build output: `dist/control-ui`.
+- Server modules:
+  - `src/ui-server/server.ts` (http + ws startup)
+  - `src/ui-server/http.ts` (static assets + bootstrap + health endpoints)
+  - `src/ui-server/ws.ts` (WebSocket transport)
+  - `src/ui-server/rpc-router.ts` (JSON-RPC style method router)
+- HTTP endpoints:
+  - `GET /`
+  - `GET /health`
+  - `GET /__kaizen/control-ui-config.json`
+- WS endpoint:
+  - `/ws` with request/response/event frames.
+- Chat history persistence:
+  - `~/.kaizen/state/ui/workspaces/<workspaceHash>/sessions/<sessionId>.json`
+  - `~/.kaizen/state/ui/workspaces/<workspaceHash>/index.json`
+- UI local prefs:
+  - `kaizen.ui.theme` (`dark|light`)
+  - `kaizen.ui.density` (`comfortable|compact`)
+
+7. Service runtime (optional always-on)
 - Service command group: `kaizen service ...`.
 - `src/service/manager.ts` resolves platform implementation.
 - Platform backends:
@@ -42,22 +73,24 @@ Kaizen is a focused project-builder agent that keeps onboarding simple while all
   - `src/service/schtasks.ts` (Windows task scheduler)
 - Worker entry: `src/service/worker.ts`.
 
-6. Channel runtime (Telegram v1)
+8. Channel runtime (Telegram v1)
 - Commands under `kaizen channels telegram ...`.
 - API wrapper: `src/channels/telegram/api.ts`.
 - Offset persistence: `src/channels/telegram/state.ts`.
 - Poll loop and queue: `src/channels/telegram/poller.ts`.
 - Scope is DM-only with numeric allowlist enforcement.
 
-7. Model turn execution
+9. Model turn execution
 - Non-interactive turns use `src/engine/codex-turn.ts`.
 - Runtime calls `codex exec` with workspace control and output capture.
 
 ## Runtime files
 
 - `~/.kaizen/kaizen.json` (main config)
+- `~/.kaizen/install.json` (install metadata for uninstall/path cleanup)
 - `~/.kaizen/run/service.pid` (worker pid)
 - `~/.kaizen/run/codex-last-message.txt` (last non-interactive reply)
+- `~/.kaizen/state/ui/workspaces/<workspaceHash>/...` (local UI chat state)
 - `~/.kaizen/state/telegram/update-offset-default.json` (telegram update offset)
 - `<workspace>/.kaizen/memory/<ability>.md` (context continuity memory)
 
@@ -73,7 +106,9 @@ Kaizen is a focused project-builder agent that keeps onboarding simple while all
 
 - `install.sh` (macOS/Linux) and `install.ps1` (Windows).
 - Installs global `kaizen` launcher.
+- Writes `~/.kaizen/install.json` metadata (install dir, launcher paths, PATH strategy).
 - Auto-onboarding and auto-launch can be disabled.
 - Post-onboarding behavior is run-mode aware:
   - manual -> `kaizen start`
   - always-on -> `kaizen service install/start/status`
+- Installer onboarding is called with `--auto-start false` to avoid double launch, because installer owns final launch sequencing.

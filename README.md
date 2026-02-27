@@ -40,10 +40,20 @@ Kaizen supports two runtime modes:
 1. `manual` (default): Kaizen runs in foreground and stops when the terminal closes.
 2. `always-on` (opt-in): Kaizen runs as an OS service (`launchd`, `systemd --user`, or Windows `schtasks`).
 
+Kaizen also provides a local browser UI at `localhost:3000` with chat, runtime status, service controls, telegram controls, and profile file references.
+
+UI defaults:
+
+- dark-first premium theme
+- manual light-mode toggle
+- local preference persistence (`kaizen.ui.theme`, `kaizen.ui.density`)
+
 During onboarding/install:
 
 - If run mode is `manual`, Kaizen launches `kaizen start`.
 - If run mode is `always-on`, Kaizen installs/starts service and prints `kaizen service status`.
+- Direct `kaizen onboard` and `kaizen setup --wizard` also auto-start Kaizen by default.
+- Disable this with `--no-auto-start` (or `--auto-start false`).
 
 ## Core commands
 
@@ -53,7 +63,15 @@ During onboarding/install:
 - `kaizen chat`
 - `kaizen ui`
 - `kaizen status`
+- `kaizen uninstall`
 - `kaizen init <projectName>`
+
+`kaizen ui` options:
+
+- `--host <host>` (default `127.0.0.1`)
+- `--port <port>` (default `3000`)
+- `--no-open` (do not auto-open browser)
+- `--session <id>` (chat history session override)
 
 Service commands:
 
@@ -64,6 +82,39 @@ Service commands:
 - `kaizen service restart`
 - `kaizen service status`
 - `kaizen service uninstall`
+
+## Uninstall
+
+Use `kaizen uninstall` for full Kaizen removal flow.
+
+Modes:
+
+- `minimal`: remove service + launchers, keep install code and `~/.kaizen` data.
+- `standard` (default): `minimal` plus remove install directory and `~/.kaizen`.
+- `deep`: `standard` plus remove `<configured-workspace>/.kaizen`.
+
+Examples:
+
+```bash
+kaizen uninstall
+```
+
+```bash
+kaizen uninstall --mode minimal --yes
+```
+
+```bash
+kaizen uninstall --mode deep --yes
+```
+
+Options:
+
+- `--mode <minimal|standard|deep>`
+- `--yes` (skip typed confirmation)
+- `--no-path-cleanup` (skip shell/User PATH cleanup)
+
+By default, uninstall requires typing `uninstall kaizen` to confirm.
+Codex OAuth login state is not changed by Kaizen uninstall.
 
 Telegram commands:
 
@@ -81,8 +132,12 @@ Telegram commands:
 - `--telegram-bot-token <token>`
 - `--telegram-allow-from <csv>`
 - `--accept-always-on-risk true`
+- `--auto-start true|false`
+- `--no-auto-start`
 
 Non-interactive always-on requires `--accept-always-on-risk true`.
+
+If auto-start cannot open an interactive session (for example in restricted script environments), setup still succeeds and Kaizen prints the exact manual `kaizen start ...` command.
 
 ## Configuration
 
@@ -102,6 +157,14 @@ Major sections:
 
 Older v2 configs are automatically normalized to v3 on read.
 
+## Design skill pack
+
+Kaizen keeps design guidance in a separate layer so core runtime behavior stays stable.
+
+- mirrored design sources: `building-components`, `web-design-guidelines`, `vercel-react-best-practices`
+- trusted marketplace sources: curated `skills.sh` UI/UX and frontend set
+- active prompt layer: `DESIGN_SKILLS.md` (web-design ability)
+
 ## Build from source
 
 ```bash
@@ -112,9 +175,20 @@ corepack pnpm build
 corepack pnpm start
 ```
 
+UI development:
+
+```bash
+corepack pnpm ui:dev
+```
+
 ## Docs
 
 - `docs/ARCHITECTURE_NOTES.md`
 - `docs/RUNTIME_MODES.md`
 - `docs/TELEGRAM_CHANNEL.md`
 - `docs/SECURITY_DISCLAIMER.md`
+- `docs/LOCAL_UI_ARCHITECTURE.md`
+- `docs/LOCAL_UI_RPC.md`
+- `docs/UI_STYLE_GUIDE.md`
+- `docs/DESIGN_SKILL_USAGE.md`
+- `docs/design-skill-pack/README.md`

@@ -40,6 +40,22 @@ kaizen service restart
 kaizen service uninstall
 ```
 
+## Full uninstall
+
+Kaizen also supports full uninstall with mode-based depth:
+
+```bash
+kaizen uninstall --mode standard
+```
+
+Modes:
+
+- `minimal`: remove service and launchers only.
+- `standard` (default): minimal + remove install dir and `~/.kaizen`.
+- `deep`: standard + remove configured workspace metadata folder (`<workspace>/.kaizen`).
+
+Default behavior requires typed confirmation (`uninstall kaizen`), unless `--yes` is passed.
+
 ## Foreground worker mode
 
 For debugging or temporary channel processing:
@@ -61,3 +77,9 @@ kaizen onboard --non-interactive --run-mode manual
 ```bash
 kaizen onboard --non-interactive --run-mode always-on --accept-always-on-risk true
 ```
+
+Auto-start behavior after onboarding/setup:
+
+- default: enabled (`--auto-start true`)
+- disable: `--no-auto-start` or `--auto-start false`
+- if launch is not possible in the current environment, Kaizen prints a manual `kaizen start ...` fallback command.
