@@ -31,6 +31,10 @@ This file keeps Kaizen aligned to its own architecture as a focused project-buil
 - One-command install scripts:
   - `install.sh` for macOS/Linux
   - `install.ps1` for Windows
+- Primary distribution command is served from the branded domain:
+  - `https://tododeia.com/install.sh`
+  - `https://tododeia.com/install.ps1`
+- Domain installer bootstraps the latest Kaizen installer from GitHub.
 
 6. Context continuity
 - Context guard is enabled by default with a 65% threshold.
