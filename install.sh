@@ -4,8 +4,133 @@ set -euo pipefail
 KAIZEN_REPO_URL="${KAIZEN_REPO_URL:-https://github.com/Hainrixz/kaizen.git}"
 KAIZEN_BRANCH="${KAIZEN_BRANCH:-}"
 KAIZEN_INSTALL_DIR="${KAIZEN_INSTALL_DIR:-$HOME/.kaizen/agent}"
-KAIZEN_BIN_DIR="${KAIZEN_BIN_DIR:-$HOME/.local/bin}"
+DEFAULT_KAIZEN_BIN_DIR="$HOME/.local/bin"
+KAIZEN_BIN_DIR_EXPLICIT="0"
+if [[ -n "${KAIZEN_BIN_DIR+x}" ]]; then
+  KAIZEN_BIN_DIR_EXPLICIT="1"
+fi
+KAIZEN_BIN_DIR="${KAIZEN_BIN_DIR:-$DEFAULT_KAIZEN_BIN_DIR}"
 KAIZEN_AUTO_LAUNCH="${KAIZEN_AUTO_LAUNCH:-1}"
+
+path_contains_dir() {
+  local target_dir="$1"
+  [[ -n "$target_dir" ]] && [[ ":$PATH:" == *":$target_dir:"* ]]
+}
+
+ensure_writable_dir() {
+  local target_dir="$1"
+  if [[ -d "$target_dir" ]]; then
+    [[ -w "$target_dir" ]]
+    return
+  fi
+  if [[ "$target_dir" == "$HOME/"* ]]; then
+    mkdir -p "$target_dir" >/dev/null 2>&1
+    [[ -d "$target_dir" && -w "$target_dir" ]]
+    return
+  fi
+  return 1
+}
+
+select_bin_dir_if_needed() {
+  if [[ "$KAIZEN_BIN_DIR_EXPLICIT" == "1" ]]; then
+    return
+  fi
+
+  local candidates=()
+
+  if path_contains_dir "/opt/homebrew/bin"; then
+    candidates+=("/opt/homebrew/bin")
+  fi
+  if path_contains_dir "/usr/local/bin"; then
+    candidates+=("/usr/local/bin")
+  fi
+  if path_contains_dir "$HOME/.local/bin"; then
+    candidates+=("$HOME/.local/bin")
+  fi
+  if path_contains_dir "$HOME/bin"; then
+    candidates+=("$HOME/bin")
+  fi
+
+  candidates+=("$HOME/.local/bin" "$HOME/bin")
+
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if ensure_writable_dir "$candidate"; then
+      KAIZEN_BIN_DIR="$candidate"
+      return
+    fi
+  done
+
+  KAIZEN_BIN_DIR="$DEFAULT_KAIZEN_BIN_DIR"
+}
+
+choose_shell_profile_file() {
+  local shell_name
+  shell_name="$(basename "${SHELL:-}")"
+  case "$shell_name" in
+    zsh)
+      echo "$HOME/.zshrc"
+      ;;
+    bash)
+      if [[ -f "$HOME/.bashrc" ]]; then
+        echo "$HOME/.bashrc"
+      else
+        echo "$HOME/.bash_profile"
+      fi
+      ;;
+    fish)
+      echo "$HOME/.config/fish/config.fish"
+      ;;
+    *)
+      echo "$HOME/.profile"
+      ;;
+  esac
+}
+
+ensure_bin_on_shell_path() {
+  local bin_dir="$1"
+  local profile_file shell_name start_marker end_marker path_line
+
+  if path_contains_dir "$bin_dir"; then
+    PATH_READY="yes"
+    return 0
+  fi
+
+  profile_file="$(choose_shell_profile_file)"
+  shell_name="$(basename "${SHELL:-}")"
+
+  if [[ "$shell_name" == "fish" ]]; then
+    path_line="fish_add_path \"$bin_dir\""
+  else
+    path_line="export PATH=\"$bin_dir:\$PATH\""
+  fi
+
+  start_marker="# >>> kaizen path >>>"
+  end_marker="# <<< kaizen path <<<"
+
+  if [[ -f "$profile_file" ]] && grep -F "$start_marker" "$profile_file" >/dev/null 2>&1; then
+    PATH_READY="profile"
+    PATH_PROFILE_FILE="$profile_file"
+    PATH_PROFILE_UPDATED="no"
+    return 0
+  fi
+
+  if ! mkdir -p "$(dirname "$profile_file")" >/dev/null 2>&1; then
+    return 1
+  fi
+
+  {
+    echo ""
+    echo "$start_marker"
+    echo "$path_line"
+    echo "$end_marker"
+  } >>"$profile_file" || return 1
+
+  PATH_READY="profile"
+  PATH_PROFILE_FILE="$profile_file"
+  PATH_PROFILE_UPDATED="yes"
+  return 0
+}
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -35,6 +160,8 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+select_bin_dir_if_needed
 
 if [[ -z "$KAIZEN_REPO_URL" || -z "$KAIZEN_INSTALL_DIR" || -z "$KAIZEN_BIN_DIR" ]]; then
   echo "[kaizen installer] one or more required values are empty." >&2
@@ -116,9 +243,10 @@ exec node "\$KAIZEN_INSTALL_DIR/kaizen.mjs" "\$@"
 EOF
 chmod +x "$KAIZEN_BIN_DIR/kaizen"
 
-if [[ ":$PATH:" == *":$KAIZEN_BIN_DIR:"* ]]; then
-  PATH_READY="yes"
-else
+PATH_READY="no"
+PATH_PROFILE_FILE=""
+PATH_PROFILE_UPDATED="no"
+if ! ensure_bin_on_shell_path "$KAIZEN_BIN_DIR"; then
   PATH_READY="no"
 fi
 
@@ -126,9 +254,18 @@ echo ""
 echo "kaizen installed."
 echo "launcher: $KAIZEN_BIN_DIR/kaizen"
 
-if [[ "$PATH_READY" == "no" ]]; then
+if [[ "$PATH_READY" == "profile" ]]; then
   echo ""
-  echo "add this to your shell profile to use 'kaizen' from anywhere:"
+  if [[ "$PATH_PROFILE_UPDATED" == "yes" ]]; then
+    echo "added $KAIZEN_BIN_DIR to PATH in: $PATH_PROFILE_FILE"
+  else
+    echo "PATH already configured in: $PATH_PROFILE_FILE"
+  fi
+  echo "open a new terminal (or run: source \"$PATH_PROFILE_FILE\") to use 'kaizen' everywhere."
+elif [[ "$PATH_READY" == "no" ]]; then
+  echo ""
+  echo "could not auto-update your shell profile."
+  echo "add this to a shell profile to use 'kaizen' from anywhere:"
   echo "export PATH=\"$KAIZEN_BIN_DIR:\$PATH\""
 fi
 
