@@ -23,6 +23,7 @@
     "start": "pnpm run build && node ./kaizen.mjs"
   },
   "dependencies": {
+    "@clack/prompts": "^1.0.1",
     "commander": "^14.0.3"
   },
   "devDependencies": {

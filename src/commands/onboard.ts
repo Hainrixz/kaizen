@@ -8,8 +8,8 @@
 
 import os from "node:os";
 import path from "node:path";
-import readline from "node:readline/promises";
 import process from "node:process";
+import { confirm, isCancel, select, text } from "@clack/prompts";
 import {
   isUnsafeWorkspaceInput,
   normalizeAbilityProfile,
@@ -44,6 +44,59 @@ const INTERACTION_CHOICES = [
   { value: "localhost", label: "Localhost UI (port 3000)" },
 ];
 
+const WORKSPACE_LOCATION_DESKTOP = "desktop";
+const WORKSPACE_LOCATION_DOCUMENTS = "documents";
+const WORKSPACE_LOCATION_HOME = "home";
+const WORKSPACE_LOCATION_CUSTOM = "custom";
+const WORKSPACE_FOLDER_NAME = "kaizen-workspace";
+
+const WORKSPACE_LOCATION_CHOICES = [
+  { value: WORKSPACE_LOCATION_DESKTOP, label: "Desktop" },
+  { value: WORKSPACE_LOCATION_DOCUMENTS, label: "Documents" },
+  { value: WORKSPACE_LOCATION_HOME, label: "Home folder" },
+  { value: WORKSPACE_LOCATION_CUSTOM, label: "Custom path" },
+];
+
+function normalizeWorkspaceLocation(rawValue: unknown) {
+  if (typeof rawValue !== "string" || rawValue.trim().length === 0) {
+    return null;
+  }
+  const normalized = rawValue.trim().toLowerCase();
+  if (
+    normalized !== WORKSPACE_LOCATION_DESKTOP &&
+    normalized !== WORKSPACE_LOCATION_DOCUMENTS &&
+    normalized !== WORKSPACE_LOCATION_HOME &&
+    normalized !== WORKSPACE_LOCATION_CUSTOM
+  ) {
+    return null;
+  }
+  return normalized;
+}
+
+function resolveWorkspaceFromLocation(location: string) {
+  const home = os.homedir();
+  if (location === WORKSPACE_LOCATION_DESKTOP) {
+    return path.join(home, "Desktop", WORKSPACE_FOLDER_NAME);
+  }
+  if (location === WORKSPACE_LOCATION_DOCUMENTS) {
+    return path.join(home, "Documents", WORKSPACE_FOLDER_NAME);
+  }
+  return path.join(home, WORKSPACE_FOLDER_NAME);
+}
+
+function resolveWorkspaceLocationDefault(workspace: string) {
+  if (workspace === resolveWorkspaceFromLocation(WORKSPACE_LOCATION_DESKTOP)) {
+    return WORKSPACE_LOCATION_DESKTOP;
+  }
+  if (workspace === resolveWorkspaceFromLocation(WORKSPACE_LOCATION_DOCUMENTS)) {
+    return WORKSPACE_LOCATION_DOCUMENTS;
+  }
+  if (workspace === resolveWorkspaceFromLocation(WORKSPACE_LOCATION_HOME)) {
+    return WORKSPACE_LOCATION_HOME;
+  }
+  return WORKSPACE_LOCATION_CUSTOM;
+}
+
 function formatHomePath(targetPath) {
   const home = os.homedir();
   if (targetPath === home) {
@@ -55,57 +108,62 @@ function formatHomePath(targetPath) {
   return targetPath;
 }
 
-async function askWithDefault(rl, label, fallback) {
-  const value = await rl.question(`${label} (default: ${fallback}): `);
-  const normalized = value.trim();
-  if (!normalized) {
-    return fallback;
-  }
-  return normalized;
-}
-
-async function askYesNo(rl, label, defaultValue = false) {
-  const hint = defaultValue ? "Y/n" : "y/N";
-  const value = (await rl.question(`${label} (${hint}): `)).trim().toLowerCase();
-  if (!value) {
-    return defaultValue;
-  }
-  return value === "y" || value === "yes";
-}
-
 function findDefaultChoiceIndex(choices, defaultValue) {
   const index = choices.findIndex((choice) => choice.value === defaultValue);
   return index >= 0 ? index : 0;
 }
 
-async function askChoice(rl, label, choices, defaultValue) {
+function cancelOnboarding(currentConfig) {
+  console.log("");
+  console.log("Onboarding cancelled. No changes were written.");
+  return currentConfig;
+}
+
+async function askChoice(label, choices, defaultValue) {
   const defaultIndex = findDefaultChoiceIndex(choices, defaultValue);
-  const defaultChoice = choices[defaultIndex];
-
-  console.log(label);
-  for (let i = 0; i < choices.length; i += 1) {
-    const choice = choices[i];
-    const marker = i === defaultIndex ? " (default)" : "";
-    console.log(`  ${i + 1}. ${choice.label}${marker}`);
+  const selection = await select({
+    message: label,
+    options: choices,
+    initialValue: choices[defaultIndex]?.value,
+  });
+  if (isCancel(selection)) {
+    return null;
   }
+  return selection;
+}
 
-  const raw = (await rl.question(`Select [1-${choices.length}] (default: ${defaultIndex + 1}): `)).trim();
-  if (!raw) {
-    return defaultChoice.value;
+async function askPath(label, fallbackPath) {
+  const rawPath = await text({
+    message: label,
+    defaultValue: fallbackPath,
+    placeholder: fallbackPath,
+    validate: (value) => {
+      const normalized = String(value ?? "").trim();
+      if (!normalized) {
+        return "Enter a folder path.";
+      }
+      if (isUnsafeWorkspaceInput(normalized)) {
+        return "Enter a folder path only (not a shell command).";
+      }
+      return;
+    },
+  });
+  if (isCancel(rawPath)) {
+    return null;
   }
+  const normalized = String(rawPath).trim();
+  return normalized || fallbackPath;
+}
 
-  const numeric = Number.parseInt(raw, 10);
-  if (!Number.isNaN(numeric) && numeric >= 1 && numeric <= choices.length) {
-    return choices[numeric - 1].value;
+async function askYesNo(label, defaultValue = false) {
+  const response = await confirm({
+    message: label,
+    initialValue: defaultValue,
+  });
+  if (isCancel(response)) {
+    return null;
   }
-
-  const normalized = raw.toLowerCase();
-  const byValue = choices.find((choice) => choice.value === normalized);
-  if (byValue) {
-    return byValue.value;
-  }
-
-  return defaultChoice.value;
+  return Boolean(response);
 }
 
 function resolveModelChoiceDefault(modelProvider, localRuntime) {
@@ -121,6 +179,17 @@ export async function onboardCommand(options: any = {}) {
   const nonInteractive = Boolean(options.nonInteractive);
   const hasWorkspaceOverride =
     typeof options.workspace === "string" && options.workspace.trim().length > 0;
+  const workspaceLocationFromOption = normalizeWorkspaceLocation(options.workspaceLocation);
+
+  if (
+    typeof options.workspaceLocation === "string" &&
+    options.workspaceLocation.trim().length > 0 &&
+    !workspaceLocationFromOption
+  ) {
+    throw new Error(
+      "Invalid workspace location. Use: desktop, documents, home, or custom.",
+    );
+  }
 
   if (hasWorkspaceOverride && isUnsafeWorkspaceInput(options.workspace)) {
     throw new Error(
@@ -128,9 +197,22 @@ export async function onboardCommand(options: any = {}) {
     );
   }
 
+  if (
+    nonInteractive &&
+    workspaceLocationFromOption === WORKSPACE_LOCATION_CUSTOM &&
+    !hasWorkspaceOverride
+  ) {
+    throw new Error(
+      "Non-interactive mode needs --workspace when --workspace-location custom is used.",
+    );
+  }
+
   let workspace =
     hasWorkspaceOverride
       ? resolveWorkspacePath(options.workspace, current.defaults.workspace)
+      : workspaceLocationFromOption &&
+          workspaceLocationFromOption !== WORKSPACE_LOCATION_CUSTOM
+        ? resolveWorkspaceFromLocation(workspaceLocationFromOption)
       : current.defaults.workspace;
   let modelProvider = normalizeModelProvider(
     options.model ?? options.modelProvider ?? current.defaults.modelProvider,
@@ -151,95 +233,123 @@ export async function onboardCommand(options: any = {}) {
   }
 
   if (!nonInteractive) {
-    const rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    });
+    console.log("");
+    console.log("Kaizen onboarding wizard");
+    console.log("Use arrow keys to choose options, then press Enter.");
+    console.log("");
 
-    try {
-      console.log("");
-      console.log("Kaizen onboarding wizard");
-      console.log("");
+    const modelChoice = await askChoice(
+      "Choose model provider",
+      MODEL_CHOICES,
+      resolveModelChoiceDefault(modelProvider, localRuntime),
+    );
+    if (!modelChoice) {
+      return cancelOnboarding(current);
+    }
+    if (modelChoice === MODEL_CHOICE_OPENAI) {
+      modelProvider = "openai-codex";
+      localRuntime = "ollama";
+    } else if (modelChoice === MODEL_CHOICE_LOCAL_LMSTUDIO) {
+      modelProvider = "local";
+      localRuntime = "lmstudio";
+    } else {
+      modelProvider = "local";
+      localRuntime = "ollama";
+    }
 
-      const modelChoice = await askChoice(
-        rl,
-        "1) Choose model provider",
-        MODEL_CHOICES,
-        resolveModelChoiceDefault(modelProvider, localRuntime),
+    const selectedAbilityProfile = await askChoice(
+      "Choose ability profile (v1)",
+      ABILITY_CHOICES,
+      abilityProfile,
+    );
+    if (!selectedAbilityProfile) {
+      return cancelOnboarding(current);
+    }
+    abilityProfile = normalizeAbilityProfile(selectedAbilityProfile);
+
+    const selectedInteractionMode = await askChoice(
+      "Choose interaction mode",
+      INTERACTION_CHOICES,
+      interactionMode,
+    );
+    if (!selectedInteractionMode) {
+      return cancelOnboarding(current);
+    }
+    interactionMode = normalizeInteractionMode(selectedInteractionMode);
+
+    if (!hasWorkspaceOverride) {
+      const defaultWorkspaceLocation =
+        workspaceLocationFromOption ?? resolveWorkspaceLocationDefault(workspace);
+      const locationChoice = await askChoice(
+        "Where should Kaizen save projects by default?",
+        [
+          {
+            value: WORKSPACE_LOCATION_DESKTOP,
+            label: `Desktop (${formatHomePath(resolveWorkspaceFromLocation(WORKSPACE_LOCATION_DESKTOP))})`,
+          },
+          {
+            value: WORKSPACE_LOCATION_DOCUMENTS,
+            label: `Documents (${formatHomePath(resolveWorkspaceFromLocation(WORKSPACE_LOCATION_DOCUMENTS))})`,
+          },
+          {
+            value: WORKSPACE_LOCATION_HOME,
+            label: `Home folder (${formatHomePath(resolveWorkspaceFromLocation(WORKSPACE_LOCATION_HOME))})`,
+          },
+          {
+            value: WORKSPACE_LOCATION_CUSTOM,
+            label: "Custom path",
+          },
+        ],
+        defaultWorkspaceLocation,
       );
-      if (modelChoice === MODEL_CHOICE_OPENAI) {
-        modelProvider = "openai-codex";
-        localRuntime = "ollama";
-      } else if (modelChoice === MODEL_CHOICE_LOCAL_LMSTUDIO) {
-        modelProvider = "local";
-        localRuntime = "lmstudio";
-      } else {
-        modelProvider = "local";
-        localRuntime = "ollama";
+      if (!locationChoice) {
+        return cancelOnboarding(current);
       }
 
-      abilityProfile = normalizeAbilityProfile(
-        await askChoice(
-          rl,
-          "2) Choose ability profile (v1)",
-          ABILITY_CHOICES,
-          abilityProfile,
-        ),
-      );
-
-      interactionMode = normalizeInteractionMode(
-        await askChoice(
-          rl,
-          "3) Choose interaction mode",
-          INTERACTION_CHOICES,
-          interactionMode,
-        ),
-      );
-
-      while (true) {
-        const workspaceInput = await askWithDefault(
-          rl,
-          "4) Workspace path",
+      if (locationChoice === WORKSPACE_LOCATION_CUSTOM) {
+        const workspaceInput = await askPath(
+          "Workspace path",
           formatHomePath(workspace),
         );
-        if (isUnsafeWorkspaceInput(workspaceInput)) {
-          console.log(
-            "That looked like a command. Enter a folder path only (example: ~/kaizen-workspace).",
-          );
-          continue;
+        if (!workspaceInput) {
+          return cancelOnboarding(current);
         }
         workspace = resolveWorkspacePath(workspaceInput, workspace);
-        break;
-      }
-
-      if (modelProvider === "openai-codex") {
-        authProvider = "openai-codex";
-        if (!hasExplicitLoginChoice) {
-          runLogin = await askYesNo(rl, "5) Connect OpenAI Codex OAuth now?", true);
-        }
       } else {
-        runLogin = false;
+        workspace = resolveWorkspaceFromLocation(locationChoice);
       }
+    }
 
-      console.log("");
-      console.log("Review setup:");
-      console.log(`- model provider: ${modelProvider}`);
-      if (modelProvider === "local") {
-        console.log(`- local runtime: ${localRuntime}`);
+    if (modelProvider === "openai-codex") {
+      authProvider = "openai-codex";
+      if (!hasExplicitLoginChoice) {
+        const shouldRunLogin = await askYesNo(
+          "Connect OpenAI Codex OAuth now?",
+          true,
+        );
+        if (shouldRunLogin === null) {
+          return cancelOnboarding(current);
+        }
+        runLogin = shouldRunLogin;
       }
-      console.log(`- ability profile: ${abilityProfile}`);
-      console.log(`- interaction mode: ${interactionMode}`);
-      console.log(`- workspace: ${workspace}`);
-      console.log(`- run OAuth login now: ${runLogin ? "yes" : "no"}`);
+    } else {
+      runLogin = false;
+    }
 
-      const approved = await askYesNo(rl, "Apply this configuration?", true);
-      if (!approved) {
-        console.log("");
-        console.log("Onboarding cancelled. No changes were written.");
-        return current;
-      }
-    } finally {
-      rl.close();
+    console.log("");
+    console.log("Review setup:");
+    console.log(`- model provider: ${modelProvider}`);
+    if (modelProvider === "local") {
+      console.log(`- local runtime: ${localRuntime}`);
+    }
+    console.log(`- ability profile: ${abilityProfile}`);
+    console.log(`- interaction mode: ${interactionMode}`);
+    console.log(`- workspace: ${workspace}`);
+    console.log(`- run OAuth login now: ${runLogin ? "yes" : "no"}`);
+
+    const approved = await askYesNo("Apply this configuration?", true);
+    if (approved === null || !approved) {
+      return cancelOnboarding(current);
     }
   }
 

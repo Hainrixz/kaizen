@@ -47,6 +47,10 @@ function createProgram() {
     .command("setup")
     .description("Initialize Kaizen defaults and install selected ability profile")
     .option("--workspace <dir>", "Workspace directory for generated projects")
+    .option(
+      "--workspace-location <location>",
+      "Workspace location preset: desktop|documents|home|custom",
+    )
     .option("--wizard", "Run onboarding wizard", false)
     .option("--non-interactive", "Run onboarding without prompts", false)
     .option("--model <provider>", "Model provider: openai-codex|local")
@@ -69,6 +73,10 @@ function createProgram() {
     .description("Simple onboarding wizard: model + ability profile + interaction mode")
     .option("--non-interactive", "Run without prompts", false)
     .option("--workspace <dir>", "Workspace directory for generated projects")
+    .option(
+      "--workspace-location <location>",
+      "Workspace location preset: desktop|documents|home|custom",
+    )
     .option("--model <provider>", "Model provider: openai-codex|local")
     .option("--local-runtime <runtime>", "Local runtime: ollama|lmstudio")
     .option("--ability-profile <name>", "Ability profile (v1: web-design)")

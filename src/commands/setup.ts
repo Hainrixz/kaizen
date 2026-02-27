@@ -30,6 +30,7 @@ export async function setupCommand(options: any = {}) {
     await onboardCommand({
       nonInteractive: runNonInteractiveWizard,
       workspace: options.workspace,
+      workspaceLocation: options.workspaceLocation,
       model: options.model,
       modelProvider: options.modelProvider,
       localRuntime: options.localRuntime,
