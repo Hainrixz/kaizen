@@ -1,0 +1,25 @@
+{
+  "name": "kaizen-agent",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.17.1",
+  "engines": {
+    "node": ">=20"
+  },
+  "type": "module",
+  "author": "Enrique Rocha (@soyEnriqueRocha)",
+  "contributors": [
+    "@tododeia"
+  ],
+  "homepage": "https://github.com/soyEnriqueRocha",
+  "license": "MIT",
+  "bin": {
+    "kaizen": "./kaizen.mjs"
+  },
+  "scripts": {
+    "start": "node ./kaizen.mjs"
+  },
+  "dependencies": {
+    "commander": "^14.0.3"
+  }
+}
