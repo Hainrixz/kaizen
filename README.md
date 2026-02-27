@@ -43,13 +43,13 @@ corepack pnpm dev
 macOS + Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Hainrixz/kaizen/main/install.sh | bash
+curl -fsSL https://tododeia.com/install.sh | bash
 ```
 
 Windows (PowerShell):
 
 ```powershell
-iwr -useb https://raw.githubusercontent.com/Hainrixz/kaizen/main/install.ps1 | iex
+iwr -useb https://tododeia.com/install.ps1 | iex
 ```
 
 What happens next:
@@ -60,11 +60,21 @@ What happens next:
 Manual mode (skip auto-launch):
 
 ```bash
-KAIZEN_AUTO_LAUNCH=0 curl -fsSL https://raw.githubusercontent.com/Hainrixz/kaizen/main/install.sh | bash
+KAIZEN_AUTO_LAUNCH=0 curl -fsSL https://tododeia.com/install.sh | bash
 ```
 
 ```powershell
 $env:KAIZEN_AUTO_LAUNCH=0
+iwr -useb https://tododeia.com/install.ps1 | iex
+```
+
+Fallback direct GitHub installer URLs:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Hainrixz/kaizen/main/install.sh | bash
+```
+
+```powershell
 iwr -useb https://raw.githubusercontent.com/Hainrixz/kaizen/main/install.ps1 | iex
 ```
 
