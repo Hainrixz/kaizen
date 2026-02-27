@@ -44,10 +44,13 @@ This file keeps Kaizen aligned to its own architecture as a focused project-buil
 7. Ability skill packs
 - Each ability installs a model-agnostic pack composed of:
   - `SYSTEM_PROMPT.md`
+  - `WALKTHROUGH.md`
   - `SKILLS_INDEX.md`
   - `WORKFLOW.md`
   - `OUTPUT_TEMPLATE.md`
+  - `MARKETPLACE_SKILLS.md`
   - `skills/*.md` execution docs
+- Onboarding optionally syncs curated `skills.sh` dependencies into workspace `.agents/skills`.
 - Runtime prompt loading includes these files so behavior remains consistent across providers.
 
 ## Product direction
@@ -64,6 +67,7 @@ This file keeps Kaizen aligned to its own architecture as a focused project-buil
 - [x] Guided onboarding
 - [x] Context guard + markdown memory trail
 - [x] Web-design skill pack with workflow and execution docs
+- [x] Guided walkthrough + marketplace skills sync for web-design
 - [ ] Rich local UI chat shell (future)
 - [ ] Expanded profile marketplace (future)
 

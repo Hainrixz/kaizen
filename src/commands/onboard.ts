@@ -18,6 +18,7 @@ import {
   normalizeContextGuardThresholdPct,
   normalizeInteractionMode,
   normalizeLocalRuntime,
+  normalizeMarketplaceSkillsEnabled,
   normalizeModelProvider,
   readConfig,
   resolveConfigPath,
@@ -26,6 +27,7 @@ import {
 } from "../config.js";
 import { authLoginCommand } from "./auth.js";
 import { installAbilityProfile } from "../mission-pack.js";
+import { installMarketplaceSkillsForAbility } from "../skills-marketplace.js";
 
 const MODEL_CHOICE_OPENAI = "openai-codex";
 const MODEL_CHOICE_LOCAL_OLLAMA = "local-ollama";
@@ -233,6 +235,11 @@ export async function onboardCommand(options: any = {}) {
   const contextGuardThresholdPct = normalizeContextGuardThresholdPct(
     options.contextGuardThresholdPct ?? current.defaults.contextGuardThresholdPct,
   );
+  const hasMarketplaceSkillsOption = options.marketplaceSkills !== undefined;
+  let marketplaceSkillsEnabled = normalizeMarketplaceSkillsEnabled(
+    options.marketplaceSkills ?? current.defaults.marketplaceSkillsEnabled,
+  );
+  const forceMarketplaceSkills = Boolean(options.forceMarketplaceSkills);
   const hasExplicitLoginChoice = Boolean(options.login) || Boolean(options.skipLogin);
   let runLogin = Boolean(options.login);
 
@@ -274,6 +281,17 @@ export async function onboardCommand(options: any = {}) {
       return cancelOnboarding(current);
     }
     abilityProfile = normalizeAbilityProfile(selectedAbilityProfile);
+
+    if (!hasMarketplaceSkillsOption) {
+      const shouldInstallMarketplaceSkills = await askYesNo(
+        "Install curated web-development marketplace skills now?",
+        marketplaceSkillsEnabled,
+      );
+      if (shouldInstallMarketplaceSkills === null) {
+        return cancelOnboarding(current);
+      }
+      marketplaceSkillsEnabled = shouldInstallMarketplaceSkills;
+    }
 
     const selectedInteractionMode = await askChoice(
       "Choose interaction mode",
@@ -357,6 +375,12 @@ export async function onboardCommand(options: any = {}) {
     console.log(
       `- context guard: ${contextGuardEnabled ? `enabled (${contextGuardThresholdPct}%)` : "disabled"}`,
     );
+    console.log(
+      `- marketplace skills: ${marketplaceSkillsEnabled ? "install enabled" : "disabled"}`,
+    );
+    if (forceMarketplaceSkills) {
+      console.log("- marketplace skills force-sync: enabled");
+    }
 
     const approved = await askYesNo("Apply this configuration?", true);
     if (approved === null || !approved) {
@@ -376,6 +400,26 @@ export async function onboardCommand(options: any = {}) {
     interactionMode,
     contextGuardThresholdPct,
   });
+  let marketplaceSkillsResult = null;
+  if (marketplaceSkillsEnabled) {
+    console.log("");
+    console.log("Syncing curated marketplace skills...");
+    marketplaceSkillsResult = await installMarketplaceSkillsForAbility({
+      workspace,
+      abilityProfile,
+      force: forceMarketplaceSkills,
+      log: (line) => console.log(line),
+    });
+    const cacheLabel = marketplaceSkillsResult.cached ? " (already up to date)" : "";
+    console.log(
+      `Marketplace skills sync: ${marketplaceSkillsResult.installedCount}/${marketplaceSkillsResult.skillCount} installed, ${marketplaceSkillsResult.failedCount} failed${cacheLabel}.`,
+    );
+    if (marketplaceSkillsResult.failedCount > 0) {
+      console.log(
+        "Some marketplace skills failed to install. You can retry with --force-marketplace-skills.",
+      );
+    }
+  }
 
   const nextConfig = {
     version: 2,
@@ -390,6 +434,7 @@ export async function onboardCommand(options: any = {}) {
       authProvider,
       contextGuardEnabled,
       contextGuardThresholdPct,
+      marketplaceSkillsEnabled,
     },
     auth: {
       provider: authProvider,
@@ -402,8 +447,31 @@ export async function onboardCommand(options: any = {}) {
         globalProfileDir: installResult.globalProfileDir,
         workspaceProfileDir: installResult.workspaceProfileDir,
         workspaceSkillsIndexPath: installResult.workspaceSkillsIndexPath,
+        workspaceWalkthroughPath: installResult.workspaceWalkthroughPath,
+        workspaceMarketplaceSkillsPath: installResult.workspaceMarketplaceSkillsPath,
         memoryFilePath: installResult.memoryFilePath,
         contextGuardThresholdPct: installResult.contextGuardThresholdPct,
+        marketplaceSkills: marketplaceSkillsResult
+          ? {
+              enabled: marketplaceSkillsEnabled,
+              version: marketplaceSkillsResult.version,
+              statePath: marketplaceSkillsResult.statePath,
+              syncedAt: marketplaceSkillsResult.completedAt,
+              cached: marketplaceSkillsResult.cached,
+              skillCount: marketplaceSkillsResult.skillCount,
+              installedCount: marketplaceSkillsResult.installedCount,
+              failedCount: marketplaceSkillsResult.failedCount,
+            }
+          : {
+              enabled: marketplaceSkillsEnabled,
+              version: null,
+              statePath: null,
+              syncedAt: null,
+              cached: false,
+              skillCount: 0,
+              installedCount: 0,
+              failedCount: 0,
+            },
       },
     },
   };
@@ -427,9 +495,20 @@ export async function onboardCommand(options: any = {}) {
   console.log(
     `Context guard: ${nextConfig.defaults.contextGuardEnabled ? `enabled (${nextConfig.defaults.contextGuardThresholdPct}%)` : "disabled"}`,
   );
+  console.log(
+    `Marketplace skills: ${nextConfig.defaults.marketplaceSkillsEnabled ? "enabled" : "disabled"}`,
+  );
   console.log(`Global profile files: ${installResult.globalProfileDir}`);
   console.log(`Workspace profile files: ${installResult.workspaceProfileDir}`);
+  console.log(`Walkthrough: ${installResult.workspaceWalkthroughPath}`);
   console.log(`Skills index: ${installResult.workspaceSkillsIndexPath}`);
+  console.log(`Marketplace skills catalog: ${installResult.workspaceMarketplaceSkillsPath}`);
+  if (marketplaceSkillsResult) {
+    console.log(
+      `Marketplace sync result: ${marketplaceSkillsResult.installedCount}/${marketplaceSkillsResult.skillCount} installed, ${marketplaceSkillsResult.failedCount} failed.`,
+    );
+    console.log(`Marketplace state: ${marketplaceSkillsResult.statePath}`);
+  }
   console.log(`Memory file: ${installResult.memoryFilePath}`);
 
   return nextConfig;

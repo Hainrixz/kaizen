@@ -22,8 +22,11 @@ Architecture notes: see `docs/ARCHITECTURE_NOTES.md`.
   - interaction mode (`terminal` or `localhost`)
   - where to save projects (`desktop`, `documents`, `home`, or custom path)
 - Web-design ability now ships with a full skill pack:
-  - `SKILLS_INDEX.md` + `WORKFLOW.md` + `OUTPUT_TEMPLATE.md`
+  - `WALKTHROUGH.md` + `SKILLS_INDEX.md` + `WORKFLOW.md` + `OUTPUT_TEMPLATE.md`
   - `skills/01..06` for discovery, IA, visual system, implementation, responsive-accessibility, and QA/launch
+  - `MARKETPLACE_SKILLS.md` for curated external skills from `skills.sh`
+- Onboarding can auto-sync marketplace skills into workspace `.agents/skills`:
+  - web-design, frontend, accessibility, responsive, component, and backend-pattern support
 - Context Guard:
   - enabled by default with `65%` compression threshold
   - creates persistent markdown memory in `.kaizen/memory/<ability>.md`
@@ -84,8 +87,8 @@ iwr -useb https://raw.githubusercontent.com/Hainrixz/kaizen/main/install.ps1 | i
 ## Commands
 
 - `kaizen help`
-- `kaizen setup [--workspace <dir>] [--workspace-location desktop|documents|home|custom] [--model openai-codex|local] [--ability-profile web-design] [--context-guard-enabled true|false] [--context-guard-threshold-pct <number>]`
-- `kaizen onboard [--workspace <dir>] [--workspace-location desktop|documents|home|custom] [--model openai-codex|local] [--ability-profile web-design] [--interaction terminal|localhost] [--context-guard-enabled true|false] [--context-guard-threshold-pct <number>]`
+- `kaizen setup [--workspace <dir>] [--workspace-location desktop|documents|home|custom] [--model openai-codex|local] [--ability-profile web-design] [--context-guard-enabled true|false] [--context-guard-threshold-pct <number>] [--marketplace-skills true|false] [--force-marketplace-skills]`
+- `kaizen onboard [--workspace <dir>] [--workspace-location desktop|documents|home|custom] [--model openai-codex|local] [--ability-profile web-design] [--interaction terminal|localhost] [--context-guard-enabled true|false] [--context-guard-threshold-pct <number>] [--marketplace-skills true|false] [--force-marketplace-skills]`
 - `kaizen status`
 - `kaizen auth status`
 - `kaizen auth login --provider openai-codex`

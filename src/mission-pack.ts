@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { resolveKaizenHome } from "./config.js";
 import { ensureSessionMemoryFile } from "./context-guard.js";
+import { buildMarketplaceSkillsGuide } from "./skills-marketplace.js";
 
 const OUTPUT_SIGNATURE = "# Scaffolded with the Project Builder by @soyEnriqueRocha x @tododeia";
 
@@ -50,10 +51,19 @@ function buildWebDesignSystemPrompt(params) {
     "",
     "Execution protocol:",
     "1) Read `KAIZEN_PROFILE.md` for local workspace constraints.",
-    "2) Read `SKILLS_INDEX.md` and load only the minimum required skills.",
-    "3) Follow `WORKFLOW.md` and use `OUTPUT_TEMPLATE.md` for final delivery format.",
-    "4) When a task is broad, decompose it into small buildable milestones.",
-    "5) Keep recommendations implementation-ready, not abstract.",
+    "2) Follow `WALKTHROUGH.md` to guide the user step by step.",
+    "3) Read `SKILLS_INDEX.md` and load only the minimum required skills.",
+    "4) Follow `WORKFLOW.md` and use `OUTPUT_TEMPLATE.md` for final delivery format.",
+    "5) Check `MARKETPLACE_SKILLS.md` for available external skill dependencies.",
+    "6) When a task is broad, decompose it into small buildable milestones.",
+    "7) Keep recommendations implementation-ready, not abstract.",
+    "",
+    "Guided experience rules:",
+    "- ask one clear question at a time",
+    "- after each meaningful change, ask if user wants to preview/test it now",
+    "- keep user in control of visual direction with explicit choices",
+    "- explain next action before doing it",
+    "- keep progress incremental and visible",
     "",
     "Skill files available in this profile:",
     "- `skills/01_discovery_brief.md`",
@@ -62,6 +72,7 @@ function buildWebDesignSystemPrompt(params) {
     "- `skills/04_implementation_standards.md`",
     "- `skills/05_responsive_accessibility.md`",
     "- `skills/06_quality_launch.md`",
+    "- `MARKETPLACE_SKILLS.md` for external skills via skills.sh",
     "",
     "Output quality gates:",
     "- final UI should look intentional on desktop and mobile",
@@ -93,7 +104,9 @@ function buildWebDesignPackReadme(params) {
     "",
     "Included:",
     "- system prompt tuned for UI/UX and frontend build outcomes",
+    "- guided walkthrough for beginner-friendly step-by-step building",
     "- skills index + six web-design execution skills",
+    "- marketplace skills catalog for extra web/frontend/backend support",
     "- workflow and output template for consistent delivery",
     "- workspace-local context files for repeatable behavior",
   ].join("\n");
@@ -119,9 +132,11 @@ function buildWebDesignWorkspaceContext(params) {
     "",
     "Core profile files:",
     "- SYSTEM_PROMPT.md",
+    "- WALKTHROUGH.md",
     "- SKILLS_INDEX.md",
     "- WORKFLOW.md",
     "- OUTPUT_TEMPLATE.md",
+    "- MARKETPLACE_SKILLS.md",
     "- skills/*.md",
     "",
     "If future profiles are installed, this file can be replaced or expanded.",
@@ -149,6 +164,47 @@ function buildWebDesignSkillsIndex() {
     "- if requirements are vague, start with skills 01 + 02",
     "- for new UI builds, include skills 03 + 04",
     "- before completion, run skills 05 + 06",
+    "- for specialized needs, pull from MARKETPLACE_SKILLS.md",
+  ].join("\n");
+}
+
+function buildWebDesignWalkthrough() {
+  return [
+    OUTPUT_SIGNATURE,
+    "",
+    "# Guided Walkthrough (Web Design Ability)",
+    "",
+    "Mission:",
+    "- guide users from idea to shipped website with clear, low-friction steps",
+    "- keep communication collaborative and beginner-friendly",
+    "",
+    "Conversation loop:",
+    "1. Welcome + idea lock",
+    "- ask for the one-line goal: \"I am building ___\"",
+    "- confirm audience and primary conversion action",
+    "",
+    "2. First screen fast",
+    "- build a visible first version quickly",
+    "- ask user to preview and react before adding complexity",
+    "",
+    "3. Iterative feature loop",
+    "- propose one meaningful improvement at a time",
+    "- implement, then ask user to check how it feels",
+    "- adjust based on feedback before moving forward",
+    "",
+    "4. Quality pass",
+    "- run responsive + accessibility checks",
+    "- refine hierarchy, spacing, typography, and CTA clarity",
+    "",
+    "5. Delivery",
+    "- summarize what shipped",
+    "- list next upgrades in priority order",
+    "",
+    "Interaction rules:",
+    "- ask one question at a time",
+    "- keep instructions practical and concrete",
+    "- avoid long theory dumps",
+    "- keep user in control of style and direction",
   ].join("\n");
 }
 
@@ -316,9 +372,13 @@ function buildWebDesignProfileFiles(params) {
       modelProvider: params.modelProvider,
       localRuntime: params.localRuntime,
     }),
+    "WALKTHROUGH.md": buildWebDesignWalkthrough(),
     "SKILLS_INDEX.md": buildWebDesignSkillsIndex(),
     "WORKFLOW.md": buildWebDesignWorkflow(),
     "OUTPUT_TEMPLATE.md": buildWebDesignOutputTemplate(),
+    "MARKETPLACE_SKILLS.md": buildMarketplaceSkillsGuide("web-design", {
+      signature: OUTPUT_SIGNATURE,
+    }),
     "skills/01_discovery_brief.md": buildSkillDiscoveryBrief(),
     "skills/02_information_architecture.md": buildSkillInformationArchitecture(),
     "skills/03_visual_system.md": buildSkillVisualSystem(),
@@ -358,6 +418,11 @@ export function installAbilityProfile(params) {
     localRuntime,
   });
   const workspaceSkillsIndexPath = path.join(workspaceProfileDir, "SKILLS_INDEX.md");
+  const workspaceWalkthroughPath = path.join(workspaceProfileDir, "WALKTHROUGH.md");
+  const workspaceMarketplaceSkillsPath = path.join(
+    workspaceProfileDir,
+    "MARKETPLACE_SKILLS.md",
+  );
 
   writeTextFile(
     path.join(globalProfileDir, "README.md"),
@@ -387,6 +452,8 @@ export function installAbilityProfile(params) {
     globalProfileDir,
     workspaceProfileDir,
     workspaceSkillsIndexPath,
+    workspaceWalkthroughPath,
+    workspaceMarketplaceSkillsPath,
     memoryFilePath: memoryResult.memoryPath,
     contextGuardThresholdPct: memoryResult.thresholdPct,
   };

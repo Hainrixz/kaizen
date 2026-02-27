@@ -24,6 +24,25 @@ export async function statusCommand() {
       activeProfile,
       "SKILLS_INDEX.md",
     );
+  const walkthroughFile =
+    installedProfile?.workspaceWalkthroughPath ??
+    path.join(
+      config.defaults.workspace,
+      ".kaizen",
+      "profiles",
+      activeProfile,
+      "WALKTHROUGH.md",
+    );
+  const marketplaceSkillsFile =
+    installedProfile?.workspaceMarketplaceSkillsPath ??
+    path.join(
+      config.defaults.workspace,
+      ".kaizen",
+      "profiles",
+      activeProfile,
+      "MARKETPLACE_SKILLS.md",
+    );
+  const marketplaceState = installedProfile?.marketplaceSkills ?? null;
 
   console.log("");
   console.log("Kaizen status");
@@ -39,7 +58,17 @@ export async function statusCommand() {
   console.log(
     `Context guard: ${config.defaults.contextGuardEnabled ? `enabled (${config.defaults.contextGuardThresholdPct}%)` : "disabled"}`,
   );
+  console.log(
+    `Marketplace skills: ${config.defaults.marketplaceSkillsEnabled ? "enabled" : "disabled"}`,
+  );
+  console.log(`Walkthrough: ${walkthroughFile}`);
   console.log(`Skills index: ${skillsIndexFile}`);
+  console.log(`Marketplace skills catalog: ${marketplaceSkillsFile}`);
+  if (marketplaceState?.syncedAt) {
+    console.log(
+      `Marketplace sync: ${marketplaceState.installedCount}/${marketplaceState.skillCount} installed, ${marketplaceState.failedCount} failed (${marketplaceState.syncedAt})`,
+    );
+  }
   console.log(`Memory file: ${memoryFile}`);
   console.log(`Last OAuth login: ${config.auth?.lastLoginAt ?? "not recorded"}`);
   console.log(

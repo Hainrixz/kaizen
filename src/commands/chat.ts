@@ -65,14 +65,18 @@ function buildKaizenPrompt(params: {
     profileDir,
     "SYSTEM_PROMPT.md",
   );
+  const walkthroughFile = path.join(profileDir, "WALKTHROUGH.md");
   const skillsIndexFile = path.join(profileDir, "SKILLS_INDEX.md");
   const workflowFile = path.join(profileDir, "WORKFLOW.md");
   const outputTemplateFile = path.join(profileDir, "OUTPUT_TEMPLATE.md");
+  const marketplaceSkillsFile = path.join(profileDir, "MARKETPLACE_SKILLS.md");
 
   const profilePromptContents = readTextFileIfExists(profilePromptFile);
+  const walkthroughContents = readTextFileIfExists(walkthroughFile);
   const skillsIndexContents = readTextFileIfExists(skillsIndexFile);
   const workflowContents = readTextFileIfExists(workflowFile);
   const outputTemplateContents = readTextFileIfExists(outputTemplateFile);
+  const marketplaceSkillsContents = readTextFileIfExists(marketplaceSkillsFile);
 
   const promptSections: string[] = ["You are Kaizen."];
   const usedFiles: string[] = [];
@@ -85,6 +89,12 @@ function buildKaizenPrompt(params: {
     promptSections.push(
       `Stay focused on the ${abilityProfile} profile and ship production-ready web UI output.`,
     );
+  }
+
+  if (walkthroughContents) {
+    promptSections.push(`Guided walkthrough loaded from ${walkthroughFile}:`);
+    promptSections.push(walkthroughContents);
+    usedFiles.push(walkthroughFile);
   }
 
   if (skillsIndexContents) {
@@ -103,6 +113,12 @@ function buildKaizenPrompt(params: {
     promptSections.push(`Output template loaded from ${outputTemplateFile}:`);
     promptSections.push(outputTemplateContents);
     usedFiles.push(outputTemplateFile);
+  }
+
+  if (marketplaceSkillsContents) {
+    promptSections.push(`Marketplace skills catalog loaded from ${marketplaceSkillsFile}:`);
+    promptSections.push(marketplaceSkillsContents);
+    usedFiles.push(marketplaceSkillsFile);
   }
 
   promptSections.push(

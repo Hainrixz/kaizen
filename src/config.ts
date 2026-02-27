@@ -36,6 +36,7 @@ export function getDefaultConfig() {
       authProvider: "openai-codex",
       contextGuardEnabled: true,
       contextGuardThresholdPct: DEFAULT_CONTEXT_GUARD_THRESHOLD_PCT,
+      marketplaceSkillsEnabled: true,
     },
     auth: {
       provider: "openai-codex",
@@ -150,6 +151,22 @@ export function normalizeContextGuardThresholdPct(rawThreshold) {
   return fallback;
 }
 
+export function normalizeMarketplaceSkillsEnabled(rawEnabled) {
+  if (typeof rawEnabled === "boolean") {
+    return rawEnabled;
+  }
+  if (typeof rawEnabled === "string" && rawEnabled.trim().length > 0) {
+    const normalized = rawEnabled.trim().toLowerCase();
+    if (normalized === "0" || normalized === "false" || normalized === "off" || normalized === "no") {
+      return false;
+    }
+    if (normalized === "1" || normalized === "true" || normalized === "on" || normalized === "yes") {
+      return true;
+    }
+  }
+  return true;
+}
+
 function resolveRawPath(rawPath) {
   const trimmed = rawPath.trim();
   if (trimmed === "~") {
@@ -233,6 +250,9 @@ export function readConfig() {
         contextGuardEnabled: normalizeContextGuardEnabled(defaults.contextGuardEnabled),
         contextGuardThresholdPct: normalizeContextGuardThresholdPct(
           defaults.contextGuardThresholdPct,
+        ),
+        marketplaceSkillsEnabled: normalizeMarketplaceSkillsEnabled(
+          defaults.marketplaceSkillsEnabled,
         ),
       },
       auth: {
