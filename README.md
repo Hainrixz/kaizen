@@ -21,6 +21,9 @@ Architecture notes: see `docs/ARCHITECTURE_NOTES.md`.
   - ability profile (`web-design` in v1)
   - interaction mode (`terminal` or `localhost`)
   - where to save projects (`desktop`, `documents`, `home`, or custom path)
+- Web-design ability now ships with a full skill pack:
+  - `SKILLS_INDEX.md` + `WORKFLOW.md` + `OUTPUT_TEMPLATE.md`
+  - `skills/01..06` for discovery, IA, visual system, implementation, responsive-accessibility, and QA/launch
 - Context Guard:
   - enabled by default with `65%` compression threshold
   - creates persistent markdown memory in `.kaizen/memory/<ability>.md`

@@ -401,6 +401,7 @@ export async function onboardCommand(options: any = {}) {
         installedAt: installResult.installedAt,
         globalProfileDir: installResult.globalProfileDir,
         workspaceProfileDir: installResult.workspaceProfileDir,
+        workspaceSkillsIndexPath: installResult.workspaceSkillsIndexPath,
         memoryFilePath: installResult.memoryFilePath,
         contextGuardThresholdPct: installResult.contextGuardThresholdPct,
       },
@@ -428,6 +429,7 @@ export async function onboardCommand(options: any = {}) {
   );
   console.log(`Global profile files: ${installResult.globalProfileDir}`);
   console.log(`Workspace profile files: ${installResult.workspaceProfileDir}`);
+  console.log(`Skills index: ${installResult.workspaceSkillsIndexPath}`);
   console.log(`Memory file: ${installResult.memoryFilePath}`);
 
   return nextConfig;

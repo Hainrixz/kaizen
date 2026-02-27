@@ -30,6 +30,17 @@ type ChatOptions = {
   dryRun?: boolean;
 };
 
+function readTextFileIfExists(filePath: string) {
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+  try {
+    return fs.readFileSync(filePath, "utf8").trim();
+  } catch {
+    return null;
+  }
+}
+
 function buildKaizenPrompt(params: {
   workspace: string;
   abilityProfile: string;
@@ -44,35 +55,68 @@ function buildKaizenPrompt(params: {
     contextGuardThresholdPct,
     memoryPath,
   } = params;
-  const profilePromptFile = path.join(
+  const profileDir = path.join(
     workspace,
     ".kaizen",
     "profiles",
     abilityProfile,
+  );
+  const profilePromptFile = path.join(
+    profileDir,
     "SYSTEM_PROMPT.md",
   );
+  const skillsIndexFile = path.join(profileDir, "SKILLS_INDEX.md");
+  const workflowFile = path.join(profileDir, "WORKFLOW.md");
+  const outputTemplateFile = path.join(profileDir, "OUTPUT_TEMPLATE.md");
 
-  if (fs.existsSync(profilePromptFile)) {
-    return [
-      "You are Kaizen.",
-      `Use the ${abilityProfile} profile instructions from ${profilePromptFile} and stay focused on that scope.`,
-      buildContextGuardPromptBlock({
-        enabled: contextGuardEnabled,
-        thresholdPct: contextGuardThresholdPct,
-        memoryPath,
-      }),
-    ].join("\n");
+  const profilePromptContents = readTextFileIfExists(profilePromptFile);
+  const skillsIndexContents = readTextFileIfExists(skillsIndexFile);
+  const workflowContents = readTextFileIfExists(workflowFile);
+  const outputTemplateContents = readTextFileIfExists(outputTemplateFile);
+
+  const promptSections: string[] = ["You are Kaizen."];
+  const usedFiles: string[] = [];
+
+  if (profilePromptContents) {
+    promptSections.push(`Profile instructions loaded from ${profilePromptFile}:`);
+    promptSections.push(profilePromptContents);
+    usedFiles.push(profilePromptFile);
+  } else {
+    promptSections.push(
+      `Stay focused on the ${abilityProfile} profile and ship production-ready web UI output.`,
+    );
   }
 
-  return [
-    "You are Kaizen.",
-    `Stay focused on the ${abilityProfile} profile and ship production-ready web UI output.`,
+  if (skillsIndexContents) {
+    promptSections.push(`Skills index loaded from ${skillsIndexFile}:`);
+    promptSections.push(skillsIndexContents);
+    usedFiles.push(skillsIndexFile);
+  }
+
+  if (workflowContents) {
+    promptSections.push(`Workflow loaded from ${workflowFile}:`);
+    promptSections.push(workflowContents);
+    usedFiles.push(workflowFile);
+  }
+
+  if (outputTemplateContents) {
+    promptSections.push(`Output template loaded from ${outputTemplateFile}:`);
+    promptSections.push(outputTemplateContents);
+    usedFiles.push(outputTemplateFile);
+  }
+
+  promptSections.push(
     buildContextGuardPromptBlock({
       enabled: contextGuardEnabled,
       thresholdPct: contextGuardThresholdPct,
       memoryPath,
     }),
-  ].join("\n");
+  );
+
+  return {
+    prompt: promptSections.join("\n\n"),
+    usedFiles,
+  };
 }
 
 function runProcess(command: string, args: string[]): Promise<RunResult> {
@@ -127,13 +171,14 @@ export async function chatCommand(options: ChatOptions = {}) {
     thresholdPct: contextGuardThresholdPct,
   });
 
-  const prompt = buildKaizenPrompt({
+  const promptResult = buildKaizenPrompt({
     workspace,
     abilityProfile,
     contextGuardEnabled,
     contextGuardThresholdPct,
     memoryPath: memory.memoryPath,
   });
+  const prompt = promptResult.prompt;
   const args: string[] = [];
 
   if (modelProvider === "local") {
@@ -147,11 +192,18 @@ export async function chatCommand(options: ChatOptions = {}) {
   args.push(prompt);
 
   if (options.dryRun) {
+    const previewArgs = [...args.slice(0, -1), "<kaizen-prompt>"];
     console.log("");
     console.log("Terminal chat dry run:");
-    console.log(`codex ${args.join(" ")}`);
+    console.log(`codex ${previewArgs.join(" ")}`);
     console.log(`Context guard: ${contextGuardEnabled ? "enabled" : "disabled"} (${memory.thresholdPct}%)`);
     console.log(`Memory file: ${memory.memoryPath}`);
+    if (promptResult.usedFiles.length > 0) {
+      console.log("Prompt files:");
+      for (const file of promptResult.usedFiles) {
+        console.log(`- ${file}`);
+      }
+    }
     return true;
   }
 
@@ -159,6 +211,12 @@ export async function chatCommand(options: ChatOptions = {}) {
   console.log(`Launching Kaizen terminal chat (${abilityProfile})...`);
   console.log(`Context guard: ${contextGuardEnabled ? "enabled" : "disabled"} (${memory.thresholdPct}%)`);
   console.log(`Memory file: ${memory.memoryPath}`);
+  if (promptResult.usedFiles.length > 0) {
+    console.log("Prompt files:");
+    for (const file of promptResult.usedFiles) {
+      console.log(`- ${file}`);
+    }
+  }
   const result = await runProcess("codex", args);
   if (!result.ok && result.errorMessage) {
     console.log("");

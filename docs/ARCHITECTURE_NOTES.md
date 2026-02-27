@@ -26,6 +26,7 @@ This file keeps Kaizen aligned to its own architecture as a focused project-buil
   - interaction mode
   - default workspace location
   - context guard configuration
+  - ability skill-pack installation paths
 
 5. Installer-first distribution
 - One-command install scripts:
@@ -40,6 +41,15 @@ This file keeps Kaizen aligned to its own architecture as a focused project-buil
 - Context guard is enabled by default with a 65% threshold.
 - Session compression writes persistent markdown memory under `.kaizen/memory/`.
 
+7. Ability skill packs
+- Each ability installs a model-agnostic pack composed of:
+  - `SYSTEM_PROMPT.md`
+  - `SKILLS_INDEX.md`
+  - `WORKFLOW.md`
+  - `OUTPUT_TEMPLATE.md`
+  - `skills/*.md` execution docs
+- Runtime prompt loading includes these files so behavior remains consistent across providers.
+
 ## Product direction
 
 - Keep Kaizen focused and profile-driven.
@@ -53,6 +63,7 @@ This file keeps Kaizen aligned to its own architecture as a focused project-buil
 - [x] One-command install scripts
 - [x] Guided onboarding
 - [x] Context guard + markdown memory trail
+- [x] Web-design skill pack with workflow and execution docs
 - [ ] Rich local UI chat shell (future)
 - [ ] Expanded profile marketplace (future)
 

@@ -109,6 +109,7 @@ export async function setupCommand(options: any = {}) {
         installedAt: installResult.installedAt,
         globalProfileDir: installResult.globalProfileDir,
         workspaceProfileDir: installResult.workspaceProfileDir,
+        workspaceSkillsIndexPath: installResult.workspaceSkillsIndexPath,
         memoryFilePath: installResult.memoryFilePath,
         contextGuardThresholdPct: installResult.contextGuardThresholdPct,
       },
@@ -131,6 +132,7 @@ export async function setupCommand(options: any = {}) {
   console.log(
     `Context guard: ${nextConfig.defaults.contextGuardEnabled ? `enabled (${nextConfig.defaults.contextGuardThresholdPct}%)` : "disabled"}`,
   );
+  console.log(`Skills index: ${installResult.workspaceSkillsIndexPath}`);
   console.log(`Memory file: ${installResult.memoryFilePath}`);
   console.log("Run `kaizen onboard` anytime for the guided setup flow.");
 }

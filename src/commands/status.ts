@@ -6,6 +6,7 @@
  * ─────────────────────────────────────────────
  */
 
+import path from "node:path";
 import { readConfig, resolveConfigPath } from "../config.js";
 import { resolveSessionMemoryPath } from "../context-guard.js";
 
@@ -14,6 +15,15 @@ export async function statusCommand() {
   const activeProfile = config.defaults.abilityProfile;
   const installedProfile = config.missions?.[activeProfile];
   const memoryFile = resolveSessionMemoryPath(config.defaults.workspace, activeProfile);
+  const skillsIndexFile =
+    installedProfile?.workspaceSkillsIndexPath ??
+    path.join(
+      config.defaults.workspace,
+      ".kaizen",
+      "profiles",
+      activeProfile,
+      "SKILLS_INDEX.md",
+    );
 
   console.log("");
   console.log("Kaizen status");
@@ -29,6 +39,7 @@ export async function statusCommand() {
   console.log(
     `Context guard: ${config.defaults.contextGuardEnabled ? `enabled (${config.defaults.contextGuardThresholdPct}%)` : "disabled"}`,
   );
+  console.log(`Skills index: ${skillsIndexFile}`);
   console.log(`Memory file: ${memoryFile}`);
   console.log(`Last OAuth login: ${config.auth?.lastLoginAt ?? "not recorded"}`);
   console.log(
