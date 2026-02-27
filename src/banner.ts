@@ -16,17 +16,6 @@ export function printStartupBanner() {
     "╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚══════╝╚══════╝╚═╝  ╚═══╝",
   ];
 
-  const mascot = [
-    "                 /\\_/\\",
-    "            ____/ o o \\____",
-    "          /   __  ^  __   \\",
-    "         /___/  \\_=_/  \\___\\",
-    "         |  |  [====]  |  |",
-    "         |  |   \\__/   |  |",
-    "         |__|__________|__|",
-    "            /_/      \\_\\",
-  ];
-
   const banner = [
     "╔════════════════════════════════════════╗",
     "║   Built by @soyEnriqueRocha            ║",
@@ -39,8 +28,6 @@ export function printStartupBanner() {
 
   console.log("");
   console.log(wordmark.join("\n"));
-  console.log("");
-  console.log(mascot.join("\n"));
   console.log("");
   console.log(banner.join("\n"));
   console.log(personalityLine);
