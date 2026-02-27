@@ -49,11 +49,20 @@ Windows (PowerShell):
 iwr -useb https://raw.githubusercontent.com/Hainrixz/kaizen/main/install.ps1 | iex
 ```
 
-After install:
+What happens next:
+
+- First install: onboarding starts automatically, then Kaizen launches.
+- If config already exists: onboarding is skipped and Kaizen launches directly.
+
+Manual mode (skip auto-launch):
 
 ```bash
-kaizen onboard
-kaizen start
+KAIZEN_AUTO_LAUNCH=0 curl -fsSL https://raw.githubusercontent.com/Hainrixz/kaizen/main/install.sh | bash
+```
+
+```powershell
+$env:KAIZEN_AUTO_LAUNCH=0
+iwr -useb https://raw.githubusercontent.com/Hainrixz/kaizen/main/install.ps1 | iex
 ```
 
 ## Commands

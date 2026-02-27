@@ -4,8 +4,27 @@ param(
   [string]$RepoUrl = $(if ($env:KAIZEN_REPO_URL) { $env:KAIZEN_REPO_URL } else { "https://github.com/Hainrixz/kaizen.git" }),
   [string]$Branch = $(if ($env:KAIZEN_BRANCH) { $env:KAIZEN_BRANCH } else { "" }),
   [string]$InstallDir = $(if ($env:KAIZEN_INSTALL_DIR) { $env:KAIZEN_INSTALL_DIR } else { Join-Path $HOME ".kaizen\agent" }),
-  [string]$BinDir = $(if ($env:KAIZEN_BIN_DIR) { $env:KAIZEN_BIN_DIR } else { Join-Path $HOME ".kaizen\bin" })
+  [string]$BinDir = $(if ($env:KAIZEN_BIN_DIR) { $env:KAIZEN_BIN_DIR } else { Join-Path $HOME ".kaizen\bin" }),
+  [switch]$NoLaunch
 )
+
+function Resolve-AutoLaunch {
+  param([switch]$NoLaunchFlag)
+  if ($NoLaunchFlag) {
+    return $false
+  }
+
+  $value = $env:KAIZEN_AUTO_LAUNCH
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    return $true
+  }
+
+  $normalized = $value.Trim().ToLowerInvariant()
+  if ($normalized -in @("0", "false", "off", "no")) {
+    return $false
+  }
+  return $true
+}
 
 function Test-Command {
   param([string]$Name)
@@ -42,6 +61,11 @@ Write-Host "[kaizen installer] repo: $RepoUrl"
 Write-Host "[kaizen installer] branch: $Branch"
 Write-Host "[kaizen installer] install dir: $InstallDir"
 Write-Host "[kaizen installer] bin dir: $BinDir"
+$autoLaunch = Resolve-AutoLaunch -NoLaunchFlag:$NoLaunch
+Write-Host "[kaizen installer] auto launch: $autoLaunch"
+
+$configPath = if ($env:KAIZEN_CONFIG_PATH) { $env:KAIZEN_CONFIG_PATH } else { Join-Path $HOME ".kaizen\kaizen.json" }
+$hadConfigBeforeInstall = Test-Path $configPath
 
 $installParent = Split-Path -Parent $InstallDir
 if (-not (Test-Path $installParent)) {
@@ -109,6 +133,31 @@ if ($pathUpdated) {
   Write-Host "user PATH updated. open a new terminal to use 'kaizen' globally."
 }
 Write-Host ""
-Write-Host "next steps:"
-Write-Host "1) kaizen onboard"
-Write-Host "2) kaizen start"
+if ($autoLaunch) {
+  if (-not $hadConfigBeforeInstall) {
+    Write-Host "[kaizen installer] launching onboarding..."
+    try {
+      & $cmdPath onboard
+    } catch {
+      Write-Warning "[kaizen installer] onboarding failed: $($_.Exception.Message)"
+    }
+  } else {
+    Write-Host "[kaizen installer] existing config found. skipping onboarding."
+  }
+
+  Write-Host "[kaizen installer] launching kaizen..."
+  try {
+    & $cmdPath start
+  } catch {
+    Write-Warning "[kaizen installer] start failed: $($_.Exception.Message)"
+  }
+} else {
+  Write-Host "auto-launch disabled."
+  Write-Host "run these manually:"
+  if (-not $hadConfigBeforeInstall) {
+    Write-Host "1) kaizen onboard"
+    Write-Host "2) kaizen start"
+  } else {
+    Write-Host "1) kaizen start"
+  }
+}

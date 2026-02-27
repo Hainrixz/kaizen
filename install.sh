@@ -5,6 +5,7 @@ KAIZEN_REPO_URL="${KAIZEN_REPO_URL:-https://github.com/Hainrixz/kaizen.git}"
 KAIZEN_BRANCH="${KAIZEN_BRANCH:-}"
 KAIZEN_INSTALL_DIR="${KAIZEN_INSTALL_DIR:-$HOME/.kaizen/agent}"
 KAIZEN_BIN_DIR="${KAIZEN_BIN_DIR:-$HOME/.local/bin}"
+KAIZEN_AUTO_LAUNCH="${KAIZEN_AUTO_LAUNCH:-1}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -23,6 +24,10 @@ while [[ $# -gt 0 ]]; do
     --bin-dir)
       KAIZEN_BIN_DIR="${2:-}"
       shift 2
+      ;;
+    --no-launch)
+      KAIZEN_AUTO_LAUNCH="0"
+      shift
       ;;
     *)
       echo "[kaizen installer] unknown option: $1" >&2
@@ -69,6 +74,13 @@ echo "[kaizen installer] repo: $KAIZEN_REPO_URL"
 echo "[kaizen installer] branch: $KAIZEN_BRANCH"
 echo "[kaizen installer] install dir: $KAIZEN_INSTALL_DIR"
 echo "[kaizen installer] bin dir: $KAIZEN_BIN_DIR"
+echo "[kaizen installer] auto launch: $KAIZEN_AUTO_LAUNCH"
+
+KAIZEN_CONFIG_PATH="${KAIZEN_CONFIG_PATH:-$HOME/.kaizen/kaizen.json}"
+HAD_CONFIG_BEFORE_INSTALL="no"
+if [[ -f "$KAIZEN_CONFIG_PATH" ]]; then
+  HAD_CONFIG_BEFORE_INSTALL="yes"
+fi
 
 mkdir -p "$(dirname "$KAIZEN_INSTALL_DIR")"
 
@@ -121,6 +133,34 @@ if [[ "$PATH_READY" == "no" ]]; then
 fi
 
 echo ""
-echo "next steps:"
-echo "1) kaizen onboard"
-echo "2) kaizen start"
+if [[ "$KAIZEN_AUTO_LAUNCH" == "1" ]]; then
+  if [[ -t 1 && -t 2 && -r /dev/tty && -w /dev/tty ]]; then
+    if [[ "$HAD_CONFIG_BEFORE_INSTALL" == "no" ]]; then
+      echo "[kaizen installer] launching onboarding..."
+      "$KAIZEN_BIN_DIR/kaizen" onboard </dev/tty >/dev/tty 2>/dev/tty || true
+    else
+      echo "[kaizen installer] existing config found. skipping onboarding."
+    fi
+
+    echo "[kaizen installer] launching kaizen..."
+    "$KAIZEN_BIN_DIR/kaizen" start </dev/tty >/dev/tty 2>/dev/tty || true
+  else
+    echo "interactive terminal not available, skipping auto-launch."
+    echo "run these manually:"
+    if [[ "$HAD_CONFIG_BEFORE_INSTALL" == "no" ]]; then
+      echo "1) kaizen onboard"
+      echo "2) kaizen start"
+    else
+      echo "1) kaizen start"
+    fi
+  fi
+else
+  echo "auto-launch disabled."
+  echo "run these manually:"
+  if [[ "$HAD_CONFIG_BEFORE_INSTALL" == "no" ]]; then
+    echo "1) kaizen onboard"
+    echo "2) kaizen start"
+  else
+    echo "1) kaizen start"
+  fi
+fi
