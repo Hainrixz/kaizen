@@ -18,13 +18,17 @@
     "kaizen": "./kaizen.mjs"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "pnpm run build:cli && pnpm run ui:build",
+    "build:cli": "tsc -p tsconfig.json",
+    "ui:build": "pnpm --dir ui build",
+    "ui:dev": "pnpm --dir ui dev",
     "dev": "node --import tsx ./src/entry.ts",
     "start": "pnpm run build && node ./kaizen.mjs"
   },
   "dependencies": {
     "@clack/prompts": "^1.0.1",
-    "commander": "^14.0.3"
+    "commander": "^14.0.3",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "@types/node": "^24.6.0",

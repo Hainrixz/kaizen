@@ -15,8 +15,8 @@ Kaizen is a focused project-builder agent that keeps onboarding simple while all
 2. Config core
 - `src/config.ts` owns schema normalization and persistence.
 - Config file: `~/.kaizen/kaizen.json`.
-- Current schema: `version: 3`.
-- v2 configs are auto-migrated during reads.
+- Current schema: `version: 4`.
+- Older configs are auto-migrated during reads.
 
 3. Ability prompt stack
 - `src/prompt.ts` builds the execution prompt from profile files:
@@ -31,7 +31,7 @@ Kaizen is a focused project-builder agent that keeps onboarding simple while all
 
 4. Design skill pack layer
 - Stored under `docs/design-skill-pack/`.
-- Mirrors design-only sources from MakeSomething and trusted `skills.sh` sources.
+- Mirrors curated design-only sources and trusted `skills.sh` sources.
 - Keeps Kaizen core runtime unchanged while adding premium UI guidance.
 - Source manifest: `docs/design-skill-pack/MIRROR_MANIFEST.json`.
 
@@ -64,7 +64,26 @@ Kaizen is a focused project-builder agent that keeps onboarding simple while all
   - `kaizen.ui.theme` (`dark|light`)
   - `kaizen.ui.density` (`comfortable|compact`)
 
-7. Service runtime (optional always-on)
+7. Runtime identity core
+- Model runner abstraction:
+  - `src/engine/runner.ts`
+  - `src/engine/runner-registry.ts`
+  - `src/engine/adapters/codex-runner.ts`
+- Direct model process execution is isolated to adapter files.
+- Heartbeat runtime:
+  - `src/runtime/heartbeat.ts`
+  - `src/runtime/heartbeat-state.ts`
+- Autonomy runtime:
+  - `src/runtime/autonomy-runner.ts`
+  - `src/commands/autonomy.ts`
+- Queue runtime:
+  - `src/runtime/queue-types.ts`
+  - `src/runtime/queue-store.ts`
+  - `src/commands/queue.ts`
+- Access boundary enforcement:
+  - `src/runtime/access-policy.ts`
+
+8. Service runtime (optional always-on)
 - Service command group: `kaizen service ...`.
 - `src/service/manager.ts` resolves platform implementation.
 - Platform backends:
@@ -73,23 +92,27 @@ Kaizen is a focused project-builder agent that keeps onboarding simple while all
   - `src/service/schtasks.ts` (Windows task scheduler)
 - Worker entry: `src/service/worker.ts`.
 
-8. Channel runtime (Telegram v1)
+9. Channel runtime (Telegram v1)
 - Commands under `kaizen channels telegram ...`.
 - API wrapper: `src/channels/telegram/api.ts`.
 - Offset persistence: `src/channels/telegram/state.ts`.
 - Poll loop and queue: `src/channels/telegram/poller.ts`.
 - Scope is DM-only with numeric allowlist enforcement.
 
-9. Model turn execution
-- Non-interactive turns use `src/engine/codex-turn.ts`.
-- Runtime calls `codex exec` with workspace control and output capture.
+10. Model turn execution
+- Non-interactive turns use `src/engine/codex-turn.ts` (router).
+- Calls route through runner registry to selected adapter.
 
 ## Runtime files
 
 - `~/.kaizen/kaizen.json` (main config)
 - `~/.kaizen/install.json` (install metadata for uninstall/path cleanup)
 - `~/.kaizen/run/service.pid` (worker pid)
+- `~/.kaizen/run/autonomy.lock` (active autonomy guard)
+- `~/.kaizen/run/full-access-consent.json` (explicit full-access consent marker)
 - `~/.kaizen/run/codex-last-message.txt` (last non-interactive reply)
+- `~/.kaizen/state/heartbeat/status.json` (heartbeat status)
+- `~/.kaizen/state/queue/workspaces/<workspaceHash>.json` (task queue state)
 - `~/.kaizen/state/ui/workspaces/<workspaceHash>/...` (local UI chat state)
 - `~/.kaizen/state/telegram/update-offset-default.json` (telegram update offset)
 - `<workspace>/.kaizen/memory/<ability>.md` (context continuity memory)
@@ -100,7 +123,10 @@ Kaizen is a focused project-builder agent that keeps onboarding simple while all
 - Always-on mode is opt-in only.
 - Telegram is disabled by default.
 - Context guard default threshold: `65%`.
-- One model execution queue per worker for deterministic workspace edits.
+- Autonomy default is off.
+- Free-run must be manually started with budget.
+- Access scope default is `workspace`.
+- One model turn queue is enforced for non-interactive execution.
 
 ## Installer model
 

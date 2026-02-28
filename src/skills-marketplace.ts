@@ -14,6 +14,8 @@ export type MarketplaceSkill = {
   source: string;
   skill: string;
   category: string;
+  domain: "ui-ux" | "frontend" | "a11y" | "performance";
+  tier: "trusted" | "optional";
   why: string;
   url: string;
 };
@@ -31,6 +33,8 @@ type SkillInstallResult = {
   source: string;
   skill: string;
   category: string;
+  domain: "ui-ux" | "frontend" | "a11y" | "performance";
+  tier: "trusted" | "optional";
   ok: boolean;
   errorMessage: string | null;
 };
@@ -40,6 +44,8 @@ const WEB_DESIGN_MARKETPLACE_SKILLS: MarketplaceSkill[] = [
     source: "vercel-labs/agent-skills",
     skill: "web-design-guidelines",
     category: "web-design",
+    domain: "ui-ux",
+    tier: "trusted",
     why: "UI/UX guideline checks and visual audits.",
     url: "https://skills.sh/vercel-labs/agent-skills/web-design-guidelines",
   },
@@ -47,6 +53,8 @@ const WEB_DESIGN_MARKETPLACE_SKILLS: MarketplaceSkill[] = [
     source: "vercel-labs/agent-skills",
     skill: "vercel-react-best-practices",
     category: "frontend-performance",
+    domain: "performance",
+    tier: "trusted",
     why: "React and Next.js quality/performance patterns.",
     url: "https://skills.sh/vercel-labs/agent-skills/vercel-react-best-practices",
   },
@@ -54,6 +62,8 @@ const WEB_DESIGN_MARKETPLACE_SKILLS: MarketplaceSkill[] = [
     source: "anthropics/skills",
     skill: "frontend-design",
     category: "frontend-design",
+    domain: "frontend",
+    tier: "trusted",
     why: "High-quality frontend design and implementation patterns.",
     url: "https://skills.sh/anthropics/skills/frontend-design",
   },
@@ -61,6 +71,8 @@ const WEB_DESIGN_MARKETPLACE_SKILLS: MarketplaceSkill[] = [
     source: "wshobson/agents",
     skill: "responsive-design",
     category: "frontend-responsive",
+    domain: "frontend",
+    tier: "trusted",
     why: "Responsive systems for mobile/tablet/desktop behavior.",
     url: "https://skills.sh/wshobson/agents/responsive-design",
   },
@@ -68,6 +80,8 @@ const WEB_DESIGN_MARKETPLACE_SKILLS: MarketplaceSkill[] = [
     source: "wshobson/agents",
     skill: "accessibility-compliance",
     category: "frontend-accessibility",
+    domain: "a11y",
+    tier: "trusted",
     why: "Accessibility and compliance checks for production-ready UI.",
     url: "https://skills.sh/wshobson/agents/accessibility-compliance",
   },
@@ -75,15 +89,10 @@ const WEB_DESIGN_MARKETPLACE_SKILLS: MarketplaceSkill[] = [
     source: "wshobson/agents",
     skill: "web-component-design",
     category: "frontend-components",
+    domain: "frontend",
+    tier: "trusted",
     why: "Reusable component architecture and design-system patterns.",
     url: "https://skills.sh/wshobson/agents/web-component-design",
-  },
-  {
-    source: "wshobson/agents",
-    skill: "nodejs-backend-patterns",
-    category: "backend-patterns",
-    why: "Optional backend patterns when web projects add APIs later.",
-    url: "https://skills.sh/wshobson/agents/nodejs-backend-patterns",
   },
 ];
 
@@ -226,7 +235,9 @@ export function buildMarketplaceSkillsGuide(
 
   lines.push("Curated set:");
   for (const skill of skills) {
-    lines.push(`- \`${getSkillId(skill)}\` (${skill.category})`);
+    lines.push(
+      `- \`${getSkillId(skill)}\` (${skill.category}; domain: ${skill.domain}; tier: ${skill.tier})`,
+    );
     lines.push(`  - why: ${skill.why}`);
     lines.push(`  - ${skill.url}`);
   }
@@ -284,6 +295,8 @@ export async function installMarketplaceSkillsForAbility(params: {
       source: skill.source,
       skill: skill.skill,
       category: skill.category,
+      domain: skill.domain,
+      tier: skill.tier,
       ok: false,
       errorMessage,
     }));
@@ -340,6 +353,8 @@ export async function installMarketplaceSkillsForAbility(params: {
         source: skill.source,
         skill: skill.skill,
         category: skill.category,
+        domain: skill.domain,
+        tier: skill.tier,
         ok: true,
         errorMessage: null,
       });
@@ -352,6 +367,8 @@ export async function installMarketplaceSkillsForAbility(params: {
       source: skill.source,
       skill: skill.skill,
       category: skill.category,
+      domain: skill.domain,
+      tier: skill.tier,
       ok: false,
       errorMessage:
         runResult.errorMessage ||

@@ -5,6 +5,10 @@ Kaizen supports two runtime modes configured in `~/.kaizen/kaizen.json`:
 - `manual` (default)
 - `always-on` (opt-in)
 
+Kaizen heartbeat runs in both modes and writes status to:
+
+- `~/.kaizen/state/heartbeat/status.json`
+
 ## Manual mode
 
 - Kaizen runs in the terminal foreground.
@@ -65,6 +69,30 @@ kaizen service run
 ```
 
 This keeps worker execution tied to the current terminal session.
+
+## Autonomy runtime modes
+
+Autonomy is separate from service/manual runtime and is disabled by default.
+
+- `queued` (default autonomy mode): runs explicit queue tasks only.
+- `free-run` (optional): manual start only, bounded by turns and minutes.
+
+Commands:
+
+```bash
+kaizen autonomy status
+kaizen autonomy enable
+kaizen autonomy start --mode queued --max-turns 5 --max-minutes 20
+kaizen autonomy stop
+```
+
+Queue commands:
+
+```bash
+kaizen queue add --title "task title" --prompt "task prompt"
+kaizen queue list
+kaizen queue run-next
+```
 
 ## Onboarding flags
 

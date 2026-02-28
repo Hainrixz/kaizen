@@ -10,6 +10,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { readConfig, resolveKaizenHome } from "../config.js";
 import { startTelegramPoller } from "../channels/telegram/poller.js";
+import { startHeartbeat } from "../runtime/heartbeat.js";
+import { stopAutonomyRun } from "../runtime/autonomy-runner.js";
 
 type WorkerOptions = {
   daemon?: boolean;
@@ -44,6 +46,14 @@ export async function runServiceWorker(options: WorkerOptions = {}) {
   const config = readConfig();
   const pidPath = writePidFile();
   const quiet = Boolean(options.quiet);
+  const heartbeatHandle = startHeartbeat({
+    runtime: "service",
+    log: (line) => {
+      if (!quiet) {
+        console.log(line);
+      }
+    },
+  });
 
   if (!quiet) {
     console.log("");
@@ -92,10 +102,13 @@ export async function runServiceWorker(options: WorkerOptions = {}) {
     if (!quiet) {
       console.log(`Stopping Kaizen worker (${signal})...`);
     }
+    heartbeatHandle.stop();
     telegramHandle?.stop();
     if (telegramHandle) {
       await telegramHandle.wait();
     }
+    await heartbeatHandle.wait();
+    await stopAutonomyRun().catch(() => undefined);
     removePidFile();
     process.exit(0);
   };
@@ -106,12 +119,6 @@ export async function runServiceWorker(options: WorkerOptions = {}) {
   process.on("SIGTERM", () => {
     void stopWorker("SIGTERM");
   });
-
-  if (telegramHandle) {
-    await telegramHandle.wait();
-    removePidFile();
-    return;
-  }
 
   await waitForever();
 }

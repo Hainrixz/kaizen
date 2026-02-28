@@ -6,70 +6,68 @@
  * ─────────────────────────────────────────────
  */
 
-import path from "node:path";
-import { readConfig, resolveConfigPath } from "../config.js";
-import { resolveSessionMemoryPath } from "../context-guard.js";
-import { resolveServiceManager } from "../service/manager.js";
+import { readConfig } from "../config.js";
+import { getKaizenStatusSnapshot } from "../runtime/snapshot.js";
 
 export async function statusCommand() {
+  const snapshot = await getKaizenStatusSnapshot();
   const config = readConfig();
-  const activeProfile = config.defaults.abilityProfile;
-  const installedProfile = config.missions?.[activeProfile];
-  const memoryFile = resolveSessionMemoryPath(config.defaults.workspace, activeProfile);
-  const skillsIndexFile =
-    installedProfile?.workspaceSkillsIndexPath ??
-    path.join(config.defaults.workspace, ".kaizen", "profiles", activeProfile, "SKILLS_INDEX.md");
-  const walkthroughFile =
-    installedProfile?.workspaceWalkthroughPath ??
-    path.join(config.defaults.workspace, ".kaizen", "profiles", activeProfile, "WALKTHROUGH.md");
-  const marketplaceSkillsFile =
-    installedProfile?.workspaceMarketplaceSkillsPath ??
-    path.join(config.defaults.workspace, ".kaizen", "profiles", activeProfile, "MARKETPLACE_SKILLS.md");
+  const installedProfile = config.missions?.[snapshot.abilityProfile];
   const marketplaceState = installedProfile?.marketplaceSkills ?? null;
-
-  let serviceDetail = `${config.service.lastKnownStatus} (cached)`;
-  try {
-    const manager = resolveServiceManager();
-    const live = await manager.status();
-    serviceDetail = `${live.running ? "running" : "stopped"} (${live.detail})`;
-  } catch {
-    // unsupported platform or service check failure
-  }
 
   console.log("");
   console.log("Kaizen status");
-  console.log(`Config: ${resolveConfigPath()}`);
-  console.log(`Workspace: ${config.defaults.workspace}`);
-  console.log(`Model provider: ${config.defaults.modelProvider}`);
-  if (config.defaults.modelProvider === "local") {
-    console.log(`Local runtime: ${config.defaults.localRuntime}`);
+  console.log(`Config: ${snapshot.configPath}`);
+  console.log(`Workspace: ${snapshot.workspace}`);
+  console.log(`Engine runner: ${snapshot.engineRunner}`);
+  console.log(`Model provider: ${snapshot.modelProvider}`);
+  if (snapshot.modelProvider === "local") {
+    console.log(`Local runtime: ${snapshot.localRuntime}`);
   }
-  console.log(`Ability profile: ${activeProfile}`);
-  console.log(`Interaction mode: ${config.defaults.interactionMode}`);
-  console.log(`Run mode: ${config.defaults.runMode}`);
-  console.log(`Auth provider: ${config.defaults.authProvider}`);
+  console.log(`Ability profile: ${snapshot.abilityProfile}`);
+  console.log(`Interaction mode: ${snapshot.interactionMode}`);
+  console.log(`Run mode: ${snapshot.runMode}`);
   console.log(
-    `Context guard: ${config.defaults.contextGuardEnabled ? `enabled (${config.defaults.contextGuardThresholdPct}%)` : "disabled"}`,
+    `Autonomy: ${snapshot.autonomy.enabled ? "enabled" : "disabled"} (${snapshot.autonomy.mode})`,
   );
   console.log(
-    `Marketplace skills: ${config.defaults.marketplaceSkillsEnabled ? "enabled" : "disabled"}`,
+    `Autonomy budget: ${snapshot.autonomy.freeRun.maxTurns} turns / ${snapshot.autonomy.freeRun.maxMinutes} minutes`,
   );
-  console.log(`Telegram enabled: ${config.channels.telegram.enabled ? "yes" : "no"}`);
+  console.log(`Autonomy runtime: ${snapshot.autonomy.runtime.running ? "active" : "idle"}`);
+  console.log(`Access scope: ${snapshot.access.scope}`);
+  console.log(`Allow paths: ${snapshot.access.allowPaths.join(", ") || "(none)"}`);
+  console.log(`Auth provider: ${snapshot.authProvider}`);
   console.log(
-    `Telegram allowFrom: ${config.channels.telegram.allowFrom.join(", ") || "(empty)"}`,
+    `Context guard: ${snapshot.contextGuardEnabled ? `enabled (${snapshot.contextGuardThresholdPct}%)` : "disabled"}`,
   );
-  console.log(`Service: ${serviceDetail}`);
-  console.log(`Walkthrough: ${walkthroughFile}`);
-  console.log(`Skills index: ${skillsIndexFile}`);
-  console.log(`Marketplace skills catalog: ${marketplaceSkillsFile}`);
+  console.log(
+    `Marketplace skills: ${snapshot.marketplaceSkillsEnabled ? "enabled" : "disabled"}`,
+  );
+  console.log(`Telegram enabled: ${snapshot.telegram.enabled ? "yes" : "no"}`);
+  console.log(`Telegram allowFrom: ${snapshot.telegram.allowFrom.join(", ") || "(empty)"}`);
+  console.log(
+    `Heartbeat: ${snapshot.heartbeat.enabled ? "enabled" : "disabled"} (${snapshot.heartbeat.intervalMs}ms, last tick ${snapshot.heartbeat.lastTickAt ?? "none"})`,
+  );
+  if (snapshot.heartbeat.lastError) {
+    console.log(`Heartbeat last error: ${snapshot.heartbeat.lastError}`);
+  }
+  console.log(
+    `Queue summary: ${snapshot.queue.summary.pending} pending, ${snapshot.queue.summary.running} running, ${snapshot.queue.summary.completed} completed, ${snapshot.queue.summary.failed} failed`,
+  );
+  console.log(
+    `Service: ${snapshot.service.running ? "running" : "stopped"} (${snapshot.service.detail})`,
+  );
+  console.log(`Walkthrough: ${snapshot.profile.walkthroughFile}`);
+  console.log(`Skills index: ${snapshot.profile.skillsIndexFile}`);
+  console.log(`Marketplace skills catalog: ${snapshot.profile.marketplaceSkillsFile}`);
   if (marketplaceState?.syncedAt) {
     console.log(
       `Marketplace sync: ${marketplaceState.installedCount}/${marketplaceState.skillCount} installed, ${marketplaceState.failedCount} failed (${marketplaceState.syncedAt})`,
     );
   }
-  console.log(`Memory file: ${memoryFile}`);
-  console.log(`Last OAuth login: ${config.auth?.lastLoginAt ?? "not recorded"}`);
+  console.log(`Memory file: ${snapshot.profile.memoryFile}`);
+  console.log(`Last OAuth login: ${snapshot.lastOauthLoginAt ?? "not recorded"}`);
   console.log(
-    `Profile installed: ${installedProfile?.installedAt ? `yes (${installedProfile.installedAt})` : "no"}`,
+    `Profile installed: ${snapshot.profile.installed ? `yes (${snapshot.profile.installedAt})` : "no"}`,
   );
 }

@@ -35,6 +35,7 @@ import { authLoginCommand } from "./auth.js";
 import { installAbilityProfile } from "../mission-pack.js";
 import { installMarketplaceSkillsForAbility } from "../skills-marketplace.js";
 import { installAndStartServiceForAlwaysOnMode } from "./service.js";
+import { launchKaizenAfterSetup, normalizeAutoStartOption } from "./post-setup-launch.js";
 
 const MODEL_CHOICE_OPENAI = "openai-codex";
 const MODEL_CHOICE_LOCAL_OLLAMA = "local-ollama";
@@ -222,6 +223,10 @@ export async function onboardCommand(options: any = {}) {
   const current = readConfig();
   const configPath = resolveConfigPath();
   const nonInteractive = Boolean(options.nonInteractive);
+  const autoStart = normalizeAutoStartOption(
+    options.noAutoStart === true ? false : options.autoStart,
+    true,
+  );
 
   const hasWorkspaceOverride =
     typeof options.workspace === "string" && options.workspace.trim().length > 0;
@@ -554,7 +559,7 @@ export async function onboardCommand(options: any = {}) {
   }
 
   const nextConfig = {
-    version: 3,
+    version: 4,
     defaults: {
       ...current.defaults,
       workspace,
@@ -592,6 +597,36 @@ export async function onboardCommand(options: any = {}) {
           ? new Date().toISOString()
           : current.service?.riskAcceptedAt ?? null,
       lastKnownStatus: current.service?.lastKnownStatus ?? "unknown",
+    },
+    engine: {
+      ...(current.engine ?? {}),
+      runner: current.engine?.runner ?? "codex",
+    },
+    heartbeat: {
+      ...(current.heartbeat ?? {}),
+      enabled: current.heartbeat?.enabled ?? true,
+      intervalMs: current.heartbeat?.intervalMs ?? 1500,
+      lastTickAt: current.heartbeat?.lastTickAt ?? null,
+    },
+    autonomy: {
+      ...(current.autonomy ?? {}),
+      enabled: current.autonomy?.enabled ?? false,
+      mode: current.autonomy?.mode ?? "queued",
+      freeRun: {
+        maxTurns: current.autonomy?.freeRun?.maxTurns ?? 5,
+        maxMinutes: current.autonomy?.freeRun?.maxMinutes ?? 20,
+      },
+    },
+    access: {
+      ...(current.access ?? {}),
+      scope: current.access?.scope ?? "workspace",
+      allowPaths: [...(current.access?.allowPaths ?? [])],
+      fullAccessLastEnabledAt: current.access?.fullAccessLastEnabledAt ?? null,
+    },
+    queue: {
+      ...(current.queue ?? {}),
+      defaultWorkspaceHash: current.queue?.defaultWorkspaceHash ?? null,
+      lastRunAt: current.queue?.lastRunAt ?? null,
     },
     missions: {
       ...(current.missions ?? {}),
@@ -672,6 +707,10 @@ export async function onboardCommand(options: any = {}) {
     console.log(`Marketplace state: ${marketplaceSkillsResult.statePath}`);
   }
   console.log(`Memory file: ${installResult.memoryFilePath}`);
+
+  await launchKaizenAfterSetup(nextConfig, {
+    autoStart,
+  });
 
   return nextConfig;
 }

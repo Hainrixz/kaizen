@@ -18,6 +18,15 @@ import {
 } from "./commands/channels-telegram.js";
 import { chatCommand } from "./commands/chat.js";
 import { onboardCommand } from "./commands/onboard.js";
+import { configurationCommand } from "./commands/configuration.js";
+import {
+  autonomyConfigureCommand,
+  autonomyDisableCommand,
+  autonomyEnableCommand,
+  autonomyStartCommand,
+  autonomyStatusCommand,
+  autonomyStopCommand,
+} from "./commands/autonomy.js";
 import {
   serviceInstallCommand,
   serviceRestartCommand,
@@ -32,6 +41,13 @@ import { startCommand } from "./commands/start.js";
 import { statusCommand } from "./commands/status.js";
 import { uiCommand } from "./commands/ui.js";
 import { uninstallCommand } from "./commands/uninstall.js";
+import {
+  queueAddCommand,
+  queueClearCommand,
+  queueListCommand,
+  queueRemoveCommand,
+  queueRunNextCommand,
+} from "./commands/queue.js";
 import { normalizeAuthProvider, normalizeFocus, readConfig } from "./config.js";
 import { generateStarterProject } from "./generator.js";
 import { verifySignatureIntegrity } from "./signature.js";
@@ -125,6 +141,39 @@ function createProgram() {
     .description("Show Kaizen config status")
     .action(async () => {
       await statusCommand();
+    });
+
+  program
+    .command("config")
+    .alias("settings")
+    .description("Update Kaizen defaults (like interaction mode)")
+    .option("--interaction <mode>", "Set default interaction: terminal|localhost")
+    .option("--autonomy <state>", "Set autonomy default: on|off")
+    .option("--access <scope>", "Set access scope: workspace|workspace-plus|full")
+    .option(
+      "--allow-path <path>",
+      "Allow extra path (repeatable) when scope is workspace-plus",
+      (value, previous: string[]) => [...(Array.isArray(previous) ? previous : []), value],
+      [],
+    )
+    .option(
+      "--accept-full-access-risk <value>",
+      "Acknowledge full-access risk in non-interactive updates: true|false",
+    )
+    .option("--yes", "Skip interactive confirmation prompts where supported", false)
+    .option("--show", "Show saved config defaults", false)
+    .option("--launch", "Launch Kaizen after saving", false)
+    .action(async (opts) => {
+      await configurationCommand({
+        interaction: opts.interaction,
+        autonomy: opts.autonomy,
+        access: opts.access,
+        allowPath: opts.allowPath,
+        acceptFullAccessRisk: opts.acceptFullAccessRisk,
+        yes: Boolean(opts.yes),
+        show: Boolean(opts.show),
+        launch: Boolean(opts.launch),
+      });
     });
 
   program
@@ -304,6 +353,124 @@ function createProgram() {
       });
     });
 
+  const autonomy = program.command("autonomy").description("Manage Kaizen autonomy runtime");
+
+  autonomy
+    .command("status")
+    .description("Show autonomy status, mode, and queue summary")
+    .action(async () => {
+      await autonomyStatusCommand();
+    });
+
+  autonomy
+    .command("configure")
+    .description("Interactive autonomy + access configuration")
+    .action(async () => {
+      await autonomyConfigureCommand();
+    });
+
+  autonomy
+    .command("enable")
+    .description("Enable autonomy in config")
+    .option("--non-interactive", "Run without interactive prompts", false)
+    .option("--accept-full-access-risk <value>", "Acknowledge full-access risk: true|false")
+    .option("--yes", "Skip interactive confirmations where supported", false)
+    .action(async (opts) => {
+      await autonomyEnableCommand({
+        nonInteractive: Boolean(opts.nonInteractive),
+        acceptFullAccessRisk: opts.acceptFullAccessRisk,
+        yes: Boolean(opts.yes),
+      });
+    });
+
+  autonomy
+    .command("disable")
+    .description("Disable autonomy in config")
+    .action(async () => {
+      await autonomyDisableCommand();
+    });
+
+  autonomy
+    .command("start")
+    .description("Start autonomy runtime loop")
+    .option("--mode <mode>", "Mode: queued|free-run")
+    .option("--max-turns <n>", "Max turns budget", (value) => Number.parseInt(value, 10))
+    .option("--max-minutes <n>", "Max minutes budget", (value) => Number.parseInt(value, 10))
+    .option("--workspace <dir>", "Workspace path override")
+    .action(async (opts) => {
+      await autonomyStartCommand({
+        mode: opts.mode,
+        maxTurns: opts.maxTurns,
+        maxMinutes: opts.maxMinutes,
+        workspace: opts.workspace,
+      });
+    });
+
+  autonomy
+    .command("stop")
+    .description("Stop active autonomy runtime loop")
+    .action(async () => {
+      await autonomyStopCommand();
+    });
+
+  const queue = program.command("queue").description("Manage Kaizen queued tasks");
+
+  queue
+    .command("add")
+    .description("Add task to workspace queue")
+    .requiredOption("--title <text>", "Task title")
+    .requiredOption("--prompt <text>", "Task prompt")
+    .option("--workspace <dir>", "Workspace path override")
+    .action(async (opts) => {
+      await queueAddCommand({
+        title: opts.title,
+        prompt: opts.prompt,
+        workspace: opts.workspace,
+      });
+    });
+
+  queue
+    .command("list")
+    .description("List queued tasks for workspace")
+    .option("--workspace <dir>", "Workspace path override")
+    .action(async (opts) => {
+      await queueListCommand({
+        workspace: opts.workspace,
+      });
+    });
+
+  queue
+    .command("remove")
+    .description("Remove task from queue")
+    .requiredOption("--id <id>", "Queue task id")
+    .option("--workspace <dir>", "Workspace path override")
+    .action(async (opts) => {
+      await queueRemoveCommand({
+        id: opts.id,
+        workspace: opts.workspace,
+      });
+    });
+
+  queue
+    .command("clear")
+    .description("Clear queue for workspace")
+    .option("--workspace <dir>", "Workspace path override")
+    .action(async (opts) => {
+      await queueClearCommand({
+        workspace: opts.workspace,
+      });
+    });
+
+  queue
+    .command("run-next")
+    .description("Run one queued task turn")
+    .option("--workspace <dir>", "Workspace path override")
+    .action(async (opts) => {
+      await queueRunNextCommand({
+        workspace: opts.workspace,
+      });
+    });
+
   program
     .command("init <projectName>")
     .description("Generate a starter project")
@@ -335,12 +502,12 @@ async function run() {
   verifySignatureIntegrity();
 
   const program = createProgram();
-  if (process.argv.length <= 2) {
-    program.outputHelp();
-    return;
-  }
-
   try {
+    if (process.argv.length <= 2) {
+      await startCommand();
+      return;
+    }
+
     await program.parseAsync(process.argv);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
