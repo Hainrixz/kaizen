@@ -192,6 +192,34 @@ if ($normalizedParts -notcontains $BinDir) {
   $pathUpdated = $true
 }
 
+$kaizenHome = if (-not [string]::IsNullOrWhiteSpace($env:KAIZEN_HOME)) {
+  $env:KAIZEN_HOME
+} elseif (-not [string]::IsNullOrWhiteSpace($env:KAIZEN_CONFIG_PATH)) {
+  Split-Path -Parent $env:KAIZEN_CONFIG_PATH
+} else {
+  Join-Path $HOME ".kaizen"
+}
+
+$installMetadataPath = Join-Path $kaizenHome "install.json"
+try {
+  New-Item -ItemType Directory -Path $kaizenHome -Force | Out-Null
+  $installMetadata = @{
+    version = 1
+    platform = "win32"
+    installDir = $InstallDir
+    binDir = $BinDir
+    launcherPaths = @($cmdPath, $ps1Path)
+    pathConfig = @{
+      kind = "windows-user-path"
+      binDir = $BinDir
+    }
+    installedAt = (Get-Date).ToString("o")
+  }
+  $installMetadata | ConvertTo-Json -Depth 8 | Set-Content -Path $installMetadataPath -Encoding UTF8
+} catch {
+  Write-Warning "[kaizen installer] unable to write install metadata: $($_.Exception.Message)"
+}
+
 Write-Host ""
 Write-Host "kaizen installed."
 Write-Host "launcher: $cmdPath"
@@ -204,7 +232,7 @@ if ($autoLaunch) {
     if ($autoOnboard) {
       Write-Host "[kaizen installer] launching onboarding..."
       try {
-        & $cmdPath onboard
+        & $cmdPath onboard --auto-start false
       } catch {
         Write-Warning "[kaizen installer] onboarding failed: $($_.Exception.Message)"
       }

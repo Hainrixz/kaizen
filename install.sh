@@ -12,6 +12,8 @@ fi
 KAIZEN_BIN_DIR="${KAIZEN_BIN_DIR:-$DEFAULT_KAIZEN_BIN_DIR}"
 KAIZEN_AUTO_LAUNCH="${KAIZEN_AUTO_LAUNCH:-1}"
 KAIZEN_AUTO_ONBOARD="${KAIZEN_AUTO_ONBOARD:-1}"
+PATH_START_MARKER="# >>> kaizen path >>>"
+PATH_END_MARKER="# <<< kaizen path <<<"
 
 path_contains_dir() {
   local target_dir="$1"
@@ -90,7 +92,7 @@ choose_shell_profile_file() {
 
 ensure_bin_on_shell_path() {
   local bin_dir="$1"
-  local profile_file shell_name start_marker end_marker path_line
+  local profile_file shell_name path_line
 
   if path_contains_dir "$bin_dir"; then
     PATH_READY="yes"
@@ -106,10 +108,7 @@ ensure_bin_on_shell_path() {
     path_line="export PATH=\"$bin_dir:\$PATH\""
   fi
 
-  start_marker="# >>> kaizen path >>>"
-  end_marker="# <<< kaizen path <<<"
-
-  if [[ -f "$profile_file" ]] && grep -F "$start_marker" "$profile_file" >/dev/null 2>&1; then
+  if [[ -f "$profile_file" ]] && grep -F "$PATH_START_MARKER" "$profile_file" >/dev/null 2>&1; then
     PATH_READY="profile"
     PATH_PROFILE_FILE="$profile_file"
     PATH_PROFILE_UPDATED="no"
@@ -122,15 +121,57 @@ ensure_bin_on_shell_path() {
 
   {
     echo ""
-    echo "$start_marker"
+    echo "$PATH_START_MARKER"
     echo "$path_line"
-    echo "$end_marker"
+    echo "$PATH_END_MARKER"
   } >>"$profile_file" || return 1
 
   PATH_READY="profile"
   PATH_PROFILE_FILE="$profile_file"
   PATH_PROFILE_UPDATED="yes"
   return 0
+}
+
+write_install_metadata() {
+  local metadata_path="$1"
+  local install_dir="$2"
+  local bin_dir="$3"
+  local launcher_path="$4"
+  local profile_file="$5"
+  local start_marker="$6"
+  local end_marker="$7"
+
+  if ! mkdir -p "$(dirname "$metadata_path")" >/dev/null 2>&1; then
+    return 1
+  fi
+
+  node -e '
+const fs = require("node:fs");
+const path = require("node:path");
+const [metadataPath, installDir, binDir, launcherPath, profileFile, startMarker, endMarker] = process.argv.slice(1);
+const pathConfig = profileFile
+  ? {
+      kind: "profile-block",
+      profileFile: path.resolve(profileFile),
+      startMarker,
+      endMarker,
+      binDir: path.resolve(binDir),
+    }
+  : {
+      kind: "none",
+      binDir: path.resolve(binDir),
+    };
+const payload = {
+  version: 1,
+  platform: process.platform,
+  installDir: path.resolve(installDir),
+  binDir: path.resolve(binDir),
+  launcherPaths: [path.resolve(launcherPath)],
+  pathConfig,
+  installedAt: new Date().toISOString(),
+};
+fs.writeFileSync(metadataPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+' "$metadata_path" "$install_dir" "$bin_dir" "$launcher_path" "$profile_file" "$start_marker" "$end_marker"
 }
 
 read_config_run_mode() {
@@ -262,6 +303,7 @@ echo "[kaizen installer] auto launch: $KAIZEN_AUTO_LAUNCH"
 echo "[kaizen installer] auto onboard: $KAIZEN_AUTO_ONBOARD"
 
 KAIZEN_CONFIG_PATH="${KAIZEN_CONFIG_PATH:-$HOME/.kaizen/kaizen.json}"
+KAIZEN_HOME_DIR="${KAIZEN_HOME:-$(dirname "$KAIZEN_CONFIG_PATH")}"
 HAD_CONFIG_BEFORE_INSTALL="no"
 if [[ -f "$KAIZEN_CONFIG_PATH" ]]; then
   HAD_CONFIG_BEFORE_INSTALL="yes"
@@ -308,6 +350,18 @@ if ! ensure_bin_on_shell_path "$KAIZEN_BIN_DIR"; then
   PATH_READY="no"
 fi
 
+INSTALL_METADATA_PATH="$KAIZEN_HOME_DIR/install.json"
+if ! write_install_metadata \
+  "$INSTALL_METADATA_PATH" \
+  "$KAIZEN_INSTALL_DIR" \
+  "$KAIZEN_BIN_DIR" \
+  "$KAIZEN_BIN_DIR/kaizen" \
+  "$PATH_PROFILE_FILE" \
+  "$PATH_START_MARKER" \
+  "$PATH_END_MARKER"; then
+  echo "[kaizen installer] warning: unable to write install metadata: $INSTALL_METADATA_PATH"
+fi
+
 echo ""
 echo "kaizen installed."
 echo "launcher: $KAIZEN_BIN_DIR/kaizen"
@@ -333,7 +387,7 @@ if [[ "$KAIZEN_AUTO_LAUNCH" == "1" ]]; then
     if [[ "$HAD_CONFIG_BEFORE_INSTALL" == "no" ]]; then
       if [[ "$KAIZEN_AUTO_ONBOARD" == "1" ]]; then
         echo "[kaizen installer] launching onboarding..."
-        "$KAIZEN_BIN_DIR/kaizen" onboard </dev/tty >/dev/tty 2>/dev/tty || true
+        "$KAIZEN_BIN_DIR/kaizen" onboard --auto-start false </dev/tty >/dev/tty 2>/dev/tty || true
       else
         echo "[kaizen installer] onboarding skipped (--no-onboard)."
       fi

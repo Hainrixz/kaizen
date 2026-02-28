@@ -7,7 +7,6 @@
  * ─────────────────────────────────────────────
  */
 
-import fs from "node:fs";
 import { Command } from "commander";
 import { printStartupBanner } from "./banner.js";
 import { authLoginCommand, authStatusCommand } from "./commands/auth.js";
@@ -32,22 +31,11 @@ import { setupCommand } from "./commands/setup.js";
 import { startCommand } from "./commands/start.js";
 import { statusCommand } from "./commands/status.js";
 import { uiCommand } from "./commands/ui.js";
+import { uninstallCommand } from "./commands/uninstall.js";
 import { normalizeAuthProvider, normalizeFocus, readConfig } from "./config.js";
 import { generateStarterProject } from "./generator.js";
 import { verifySignatureIntegrity } from "./signature.js";
-
-function readPackageVersion() {
-  try {
-    const raw = fs.readFileSync(new URL("../package.json", import.meta.url), "utf8");
-    const parsed = JSON.parse(raw);
-    if (typeof parsed.version === "string" && parsed.version.trim().length > 0) {
-      return parsed.version.trim();
-    }
-    return "0.1.0";
-  } catch {
-    return "0.1.0";
-  }
-}
+import { getKaizenVersion } from "./version.js";
 
 function createProgram() {
   const program = new Command();
@@ -55,7 +43,7 @@ function createProgram() {
   program
     .name("kaizen")
     .description("Focused project-builder agent CLI")
-    .version(readPackageVersion())
+    .version(getKaizenVersion())
     .helpOption("-h, --help", "Display help for command");
 
   program
@@ -84,6 +72,8 @@ function createProgram() {
     .option("--context-guard-threshold-pct <number>", "Context compression threshold percentage")
     .option("--marketplace-skills <value>", "Install marketplace skills: true|false")
     .option("--force-marketplace-skills", "Force reinstall marketplace skills", false)
+    .option("--auto-start <value>", "Auto-start after setup: true|false")
+    .option("--no-auto-start", "Disable auto-start after setup")
     .option(
       "--auth-provider <provider>",
       "Auth provider used for OAuth login (currently: openai-codex)",
@@ -121,6 +111,8 @@ function createProgram() {
     .option("--context-guard-threshold-pct <number>", "Context compression threshold percentage")
     .option("--marketplace-skills <value>", "Install marketplace skills: true|false")
     .option("--force-marketplace-skills", "Force reinstall marketplace skills", false)
+    .option("--auto-start <value>", "Auto-start after onboarding: true|false")
+    .option("--no-auto-start", "Disable auto-start after onboarding")
     .option("--auth-provider <provider>", "Auth provider (currently: openai-codex)")
     .option("--login", "Run OAuth login after onboarding", false)
     .option("--skip-login", "Skip OAuth login after onboarding", false)
@@ -139,11 +131,17 @@ function createProgram() {
     .command("start")
     .description("Start Kaizen interactive mode (terminal or localhost)")
     .option("--interaction <mode>", "Override interaction mode: terminal|localhost")
+    .option("--host <host>", "Host for localhost mode")
     .option("--port <port>", "Port for localhost mode", (value) => Number.parseInt(value, 10))
+    .option("--no-open", "Disable browser auto-open for localhost mode")
+    .option("--session <id>", "Session id override for localhost UI history")
     .option("--workspace <dir>", "Workspace path for terminal mode")
     .option("--dry-run", "Print what would run without launching", false)
     .action(async (opts) => {
-      await startCommand(opts);
+      await startCommand({
+        ...opts,
+        noOpen: opts.open === false,
+      });
     });
 
   program
@@ -157,11 +155,17 @@ function createProgram() {
 
   program
     .command("ui")
-    .description("Launch localhost UI mode (v1 control panel)")
+    .description("Launch localhost UI mode")
+    .option("--host <host>", "Host for localhost UI")
     .option("--port <port>", "Port for localhost UI", (value) => Number.parseInt(value, 10))
+    .option("--no-open", "Disable browser auto-open")
+    .option("--session <id>", "Session id override for UI chat history")
     .option("--dry-run", "Print startup details without launching", false)
     .action(async (opts) => {
-      await uiCommand(opts);
+      await uiCommand({
+        ...opts,
+        noOpen: opts.open === false,
+      });
     });
 
   const auth = program.command("auth").description("Manage OAuth authentication providers");
@@ -237,6 +241,20 @@ function createProgram() {
     .description("Uninstall Kaizen service")
     .action(async () => {
       await serviceUninstallCommand();
+    });
+
+  program
+    .command("uninstall")
+    .description("Uninstall Kaizen runtime artifacts")
+    .option("--mode <mode>", "Uninstall mode: minimal|standard|deep", "standard")
+    .option("--yes", "Skip typed confirmation prompt", false)
+    .option("--no-path-cleanup", "Skip automatic shell/profile PATH cleanup")
+    .action(async (opts) => {
+      await uninstallCommand({
+        mode: opts.mode,
+        yes: Boolean(opts.yes),
+        pathCleanup: opts.pathCleanup !== false,
+      });
     });
 
   const channels = program.command("channels").description("Manage Kaizen channels");
