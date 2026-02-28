@@ -10,7 +10,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { resolveKaizenHome } from "./config.js";
 
-const INSTALL_METADATA_VERSION = 1;
+const INSTALL_METADATA_VERSION = 2;
+const DEFAULT_REPO_URL = "https://github.com/Hainrixz/kaizen.git";
+const DEFAULT_CHANNEL = "stable";
 
 type ProfilePathConfig = {
   kind: "profile-block";
@@ -40,6 +42,10 @@ export type KaizenInstallMetadata = {
   launcherPaths: string[];
   pathConfig: KaizenInstallPathConfig;
   installedAt: string;
+  repoUrl: string;
+  channel: "stable";
+  installedVersion: string | null;
+  installRef: string | null;
 };
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -135,6 +141,19 @@ function normalizeInstallMetadata(parsed: unknown): KaizenInstallMetadata | null
     typeof parsed.platform === "string" && parsed.platform.trim().length > 0
       ? parsed.platform.trim()
       : process.platform;
+  const repoUrl =
+    typeof parsed.repoUrl === "string" && parsed.repoUrl.trim().length > 0
+      ? parsed.repoUrl.trim()
+      : DEFAULT_REPO_URL;
+  const channel = "stable";
+  const installedVersion =
+    typeof parsed.installedVersion === "string" && parsed.installedVersion.trim().length > 0
+      ? parsed.installedVersion.trim()
+      : null;
+  const installRef =
+    typeof parsed.installRef === "string" && parsed.installRef.trim().length > 0
+      ? parsed.installRef.trim()
+      : null;
 
   return {
     version,
@@ -144,6 +163,10 @@ function normalizeInstallMetadata(parsed: unknown): KaizenInstallMetadata | null
     launcherPaths: normalizedLaunchers,
     pathConfig: normalizePathConfig(parsed.pathConfig, binDir),
     installedAt,
+    repoUrl,
+    channel,
+    installedVersion,
+    installRef,
   };
 }
 
@@ -173,10 +196,17 @@ export function writeInstallMetadata(metadata: KaizenInstallMetadata) {
 }
 
 export function createInstallMetadata(
-  input: Omit<KaizenInstallMetadata, "version" | "platform" | "installedAt"> & {
+  input: Omit<
+    KaizenInstallMetadata,
+    "version" | "platform" | "installedAt" | "repoUrl" | "channel" | "installedVersion" | "installRef"
+  > & {
     version?: number;
     platform?: string;
     installedAt?: string;
+    repoUrl?: string;
+    channel?: "stable";
+    installedVersion?: string | null;
+    installRef?: string | null;
   },
 ): KaizenInstallMetadata {
   const installDir = path.resolve(input.installDir);
@@ -200,5 +230,18 @@ export function createInstallMetadata(
       typeof input.installedAt === "string" && input.installedAt.trim().length > 0
         ? input.installedAt
         : new Date().toISOString(),
+    repoUrl:
+      typeof input.repoUrl === "string" && input.repoUrl.trim().length > 0
+        ? input.repoUrl.trim()
+        : DEFAULT_REPO_URL,
+    channel: DEFAULT_CHANNEL,
+    installedVersion:
+      typeof input.installedVersion === "string" && input.installedVersion.trim().length > 0
+        ? input.installedVersion.trim()
+        : null,
+    installRef:
+      typeof input.installRef === "string" && input.installRef.trim().length > 0
+        ? input.installRef.trim()
+        : null,
   };
 }

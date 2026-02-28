@@ -140,6 +140,8 @@ write_install_metadata() {
   local profile_file="$5"
   local start_marker="$6"
   local end_marker="$7"
+  local repo_url="$8"
+  local install_ref="$9"
 
   if ! mkdir -p "$(dirname "$metadata_path")" >/dev/null 2>&1; then
     return 1
@@ -148,7 +150,17 @@ write_install_metadata() {
   node -e '
 const fs = require("node:fs");
 const path = require("node:path");
-const [metadataPath, installDir, binDir, launcherPath, profileFile, startMarker, endMarker] = process.argv.slice(1);
+const [metadataPath, installDir, binDir, launcherPath, profileFile, startMarker, endMarker, repoUrl, installRef] = process.argv.slice(1);
+let installedVersion = null;
+try {
+  const packageRaw = fs.readFileSync(path.join(path.resolve(installDir), "package.json"), "utf8");
+  const packageJson = JSON.parse(packageRaw);
+  if (typeof packageJson.version === "string" && packageJson.version.trim().length > 0) {
+    installedVersion = packageJson.version.trim();
+  }
+} catch {
+  installedVersion = null;
+}
 const pathConfig = profileFile
   ? {
       kind: "profile-block",
@@ -162,16 +174,20 @@ const pathConfig = profileFile
       binDir: path.resolve(binDir),
     };
 const payload = {
-  version: 1,
+  version: 2,
   platform: process.platform,
   installDir: path.resolve(installDir),
   binDir: path.resolve(binDir),
   launcherPaths: [path.resolve(launcherPath)],
   pathConfig,
   installedAt: new Date().toISOString(),
+  repoUrl: repoUrl || "https://github.com/Hainrixz/kaizen.git",
+  channel: "stable",
+  installedVersion,
+  installRef: installRef || null,
 };
 fs.writeFileSync(metadataPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
-' "$metadata_path" "$install_dir" "$bin_dir" "$launcher_path" "$profile_file" "$start_marker" "$end_marker"
+' "$metadata_path" "$install_dir" "$bin_dir" "$launcher_path" "$profile_file" "$start_marker" "$end_marker" "$repo_url" "$install_ref"
 }
 
 read_config_run_mode() {
@@ -358,7 +374,9 @@ if ! write_install_metadata \
   "$KAIZEN_BIN_DIR/kaizen" \
   "$PATH_PROFILE_FILE" \
   "$PATH_START_MARKER" \
-  "$PATH_END_MARKER"; then
+  "$PATH_END_MARKER" \
+  "$KAIZEN_REPO_URL" \
+  "branch:$KAIZEN_BRANCH"; then
   echo "[kaizen installer] warning: unable to write install metadata: $INSTALL_METADATA_PATH"
 fi
 

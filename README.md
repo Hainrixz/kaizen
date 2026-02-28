@@ -78,6 +78,7 @@ During onboarding/install:
 - `kaizen chat`
 - `kaizen ui`
 - `kaizen status`
+- `kaizen update`
 - `kaizen uninstall`
 - `kaizen autonomy status|configure|enable|disable|start|stop`
 - `kaizen queue add|list|remove|clear|run-next`
@@ -115,6 +116,32 @@ Service commands:
 - `kaizen service restart`
 - `kaizen service status`
 - `kaizen service uninstall`
+
+## Update system
+
+Kaizen checks for stable updates from GitHub Releases (`Hainrixz/kaizen`) and uses a manual apply flow.
+
+- interactive startup notice appears on `kaizen`, `kaizen start`, `kaizen chat`, and `kaizen ui`
+- checks are cached for 24 hours at `~/.kaizen/state/update/status.json`
+- updates are applied only when you run `kaizen update`
+
+Commands:
+
+```bash
+kaizen update --check
+kaizen update
+```
+
+Options:
+
+- `--force` (rebuild/reinstall even if current version already matches latest)
+- `--no-restart-service` (if service was running, leave it stopped after update)
+
+Service behavior during update:
+
+- if service is running: stop -> update -> start (default)
+- if service is installed but stopped: update only
+- if service is unsupported/not installed: normal local update flow
 
 ## Uninstall
 
@@ -180,7 +207,7 @@ Config path:
 
 Schema version:
 
-- `version: 4`
+- `version: 5`
 
 Major sections:
 
@@ -192,7 +219,8 @@ Major sections:
 - `autonomy`
 - `access`
 - `queue`
-Older configs are automatically normalized to v4 on read.
+- `updates`
+Older configs are automatically normalized to v5 on read.
 
 `kaizen config` now supports:
 
@@ -232,6 +260,7 @@ corepack pnpm ui:dev
 - `docs/AUTONOMY.md`
 - `docs/ACCESS_BOUNDARIES.md`
 - `docs/QUEUE_RUNTIME.md`
+- `docs/UPDATE_SYSTEM.md`
 - `docs/TELEGRAM_CHANNEL.md`
 - `docs/SECURITY_DISCLAIMER.md`
 - `docs/LOCAL_UI_ARCHITECTURE.md`

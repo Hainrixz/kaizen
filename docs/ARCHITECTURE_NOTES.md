@@ -15,7 +15,7 @@ Kaizen is a focused project-builder agent that keeps onboarding simple while all
 2. Config core
 - `src/config.ts` owns schema normalization and persistence.
 - Config file: `~/.kaizen/kaizen.json`.
-- Current schema: `version: 4`.
+- Current schema: `version: 5`.
 - Older configs are auto-migrated during reads.
 
 3. Ability prompt stack
@@ -40,6 +40,7 @@ Kaizen is a focused project-builder agent that keeps onboarding simple while all
 - `kaizen chat` runs terminal interaction.
 - `kaizen ui` runs localhost mode on top of the control UI server.
 - `kaizen uninstall` performs mode-based full uninstall (`minimal|standard|deep`).
+- `kaizen update` checks/applies latest stable release from GitHub Releases.
 - `kaizen onboard` and `kaizen setup --wizard` trigger post-setup auto-start by default.
 - Auto-start fallback prints a manual start command without failing setup.
 
@@ -107,6 +108,7 @@ Kaizen is a focused project-builder agent that keeps onboarding simple while all
 
 - `~/.kaizen/kaizen.json` (main config)
 - `~/.kaizen/install.json` (install metadata for uninstall/path cleanup)
+- `~/.kaizen/state/update/status.json` (update check cache + notification state)
 - `~/.kaizen/run/service.pid` (worker pid)
 - `~/.kaizen/run/autonomy.lock` (active autonomy guard)
 - `~/.kaizen/run/full-access-consent.json` (explicit full-access consent marker)
@@ -132,9 +134,10 @@ Kaizen is a focused project-builder agent that keeps onboarding simple while all
 
 - `install.sh` (macOS/Linux) and `install.ps1` (Windows).
 - Installs global `kaizen` launcher.
-- Writes `~/.kaizen/install.json` metadata (install dir, launcher paths, PATH strategy).
+- Writes `~/.kaizen/install.json` metadata (install dir, launcher paths, PATH strategy, repo/ref/version).
 - Auto-onboarding and auto-launch can be disabled.
 - Post-onboarding behavior is run-mode aware:
   - manual -> `kaizen start`
   - always-on -> `kaizen service install/start/status`
 - Installer onboarding is called with `--auto-start false` to avoid double launch, because installer owns final launch sequencing.
+- Runtime update notifications are shown only for interactive commands and are cache-gated (24h).

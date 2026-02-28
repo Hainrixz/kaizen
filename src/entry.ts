@@ -41,6 +41,7 @@ import { startCommand } from "./commands/start.js";
 import { statusCommand } from "./commands/status.js";
 import { uiCommand } from "./commands/ui.js";
 import { uninstallCommand } from "./commands/uninstall.js";
+import { updateCommand } from "./commands/update.js";
 import {
   queueAddCommand,
   queueClearCommand,
@@ -51,6 +52,8 @@ import {
 import { normalizeAuthProvider, normalizeFocus, readConfig } from "./config.js";
 import { generateStarterProject } from "./generator.js";
 import { verifySignatureIntegrity } from "./signature.js";
+import { markVersionAsNotified } from "./update/cache.js";
+import { checkForUpdate } from "./update/checker.js";
 import { getKaizenVersion } from "./version.js";
 
 function createProgram() {
@@ -141,6 +144,23 @@ function createProgram() {
     .description("Show Kaizen config status")
     .action(async () => {
       await statusCommand();
+    });
+
+  program
+    .command("update")
+    .description("Check for or apply latest stable Kaizen update")
+    .option("--check", "Check update status only", false)
+    .option("--force", "Rebuild/reinstall release even if already current", false)
+    .option(
+      "--no-restart-service",
+      "Do not restart service automatically after update (if it was running)",
+    )
+    .action(async (opts) => {
+      await updateCommand({
+        check: Boolean(opts.check),
+        force: Boolean(opts.force),
+        noRestartService: opts.restartService === false,
+      });
     });
 
   program
@@ -497,12 +517,59 @@ function createProgram() {
   return program;
 }
 
+function shouldShowInteractiveUpdateNotice(argv: string[]) {
+  if (argv.includes("-h") || argv.includes("--help")) {
+    return false;
+  }
+
+  if (argv.length <= 2) {
+    return true;
+  }
+
+  const command = (argv[2] ?? "").trim().toLowerCase();
+  return command === "start" || command === "chat" || command === "ui";
+}
+
+async function checkUpdateWithTimeout(timeoutMs: number) {
+  const result = await Promise.race([
+    checkForUpdate(),
+    new Promise<null>((resolve) => {
+      setTimeout(() => resolve(null), timeoutMs);
+    }),
+  ]);
+
+  return result;
+}
+
+async function maybeNotifyUpdateOnStartup() {
+  if (!shouldShowInteractiveUpdateNotice(process.argv)) {
+    return;
+  }
+
+  const result = await checkUpdateWithTimeout(1500);
+  if (!result || !result.updateAvailable || !result.latestVersion) {
+    return;
+  }
+
+  if (result.cache.lastNotifiedVersion === result.latestVersion) {
+    return;
+  }
+
+  console.log("");
+  console.log(
+    `Update available: ${result.latestVersion} (current: ${result.currentVersion}). Run: kaizen update`,
+  );
+  markVersionAsNotified(result.latestVersion);
+}
+
 async function run() {
   printStartupBanner();
   verifySignatureIntegrity();
 
   const program = createProgram();
   try {
+    await maybeNotifyUpdateOnStartup();
+
     if (process.argv.length <= 2) {
       await startCommand();
       return;

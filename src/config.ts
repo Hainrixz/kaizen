@@ -21,6 +21,7 @@ const VALID_SERVICE_STATES = new Set(["running", "stopped", "unknown"]);
 const VALID_ENGINE_RUNNERS = new Set(["codex"]);
 const VALID_AUTONOMY_MODES = new Set(["queued", "free-run"]);
 const VALID_ACCESS_SCOPES = new Set(["workspace", "workspace-plus", "full"]);
+const VALID_UPDATE_CHANNELS = new Set(["stable"]);
 
 const DEFAULT_CONTEXT_GUARD_THRESHOLD_PCT = 65;
 const DEFAULT_TELEGRAM_POLL_INTERVAL_MS = 1500;
@@ -28,6 +29,8 @@ const DEFAULT_TELEGRAM_LONG_POLL_TIMEOUT_SEC = 25;
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 1500;
 const DEFAULT_AUTONOMY_MAX_TURNS = 5;
 const DEFAULT_AUTONOMY_MAX_MINUTES = 20;
+const DEFAULT_UPDATE_CHECK_INTERVAL_HOURS = 24;
+const DEFAULT_UPDATE_SOURCE_REPO = "Hainrixz/kaizen";
 
 const SHELL_OPERATOR_PATTERN = /(?:\r|\n|&&|\|\||;|\||`|\$\(|\$\{)/;
 const SHELL_COMMAND_PREFIX_PATTERN =
@@ -77,7 +80,7 @@ function normalizeBoundedInteger(
 
 export function getDefaultConfig() {
   return {
-    version: 4,
+    version: 5,
     defaults: {
       profile: "default",
       workspace: path.join(os.homedir(), "kaizen-workspace"),
@@ -136,6 +139,12 @@ export function getDefaultConfig() {
     queue: {
       defaultWorkspaceHash: null,
       lastRunAt: null,
+    },
+    updates: {
+      enabled: true,
+      channel: "stable",
+      checkIntervalHours: DEFAULT_UPDATE_CHECK_INTERVAL_HOURS,
+      sourceRepo: DEFAULT_UPDATE_SOURCE_REPO,
     },
     missions: {},
   };
@@ -451,6 +460,39 @@ export function normalizeQueueLastRunAt(rawValue: unknown) {
   return normalizeNullableIsoString(rawValue);
 }
 
+export function normalizeUpdateEnabled(rawValue: unknown) {
+  return normalizeBoolean(rawValue, true);
+}
+
+export function normalizeUpdateChannel(rawValue: unknown) {
+  if (typeof rawValue !== "string") {
+    return "stable";
+  }
+  const normalized = rawValue.trim().toLowerCase();
+  if (!VALID_UPDATE_CHANNELS.has(normalized)) {
+    return "stable";
+  }
+  return normalized;
+}
+
+export function normalizeUpdateCheckIntervalHours(rawValue: unknown) {
+  return normalizeBoundedInteger(rawValue, DEFAULT_UPDATE_CHECK_INTERVAL_HOURS, {
+    min: 1,
+    max: 24 * 30,
+  });
+}
+
+export function normalizeUpdateSourceRepo(rawValue: unknown) {
+  if (typeof rawValue !== "string") {
+    return DEFAULT_UPDATE_SOURCE_REPO;
+  }
+  const normalized = rawValue.trim();
+  if (!normalized) {
+    return DEFAULT_UPDATE_SOURCE_REPO;
+  }
+  return normalized;
+}
+
 export function resolveWorkspacePath(rawWorkspace: unknown, fallbackPath: unknown) {
   const defaultWorkspace = path.join(os.homedir(), "kaizen-workspace");
   const fallbackInput =
@@ -489,13 +531,14 @@ function normalizeParsedConfig(parsed: any) {
   const autonomyFreeRun = autonomy?.freeRun ?? {};
   const access = parsed?.access ?? {};
   const queue = parsed?.queue ?? {};
+  const updates = parsed?.updates ?? {};
 
   const modelProvider = normalizeModelProvider(defaults.modelProvider ?? defaults.authProvider);
   const abilityProfile = normalizeAbilityProfile(defaults.abilityProfile ?? defaults.mission);
   const mission = abilityProfile;
 
   const normalized = {
-    version: 4,
+    version: 5,
     defaults: {
       profile:
         typeof defaults.profile === "string" && defaults.profile.trim().length > 0
@@ -558,6 +601,12 @@ function normalizeParsedConfig(parsed: any) {
       defaultWorkspaceHash: normalizeQueueDefaultWorkspaceHash(queue.defaultWorkspaceHash),
       lastRunAt: normalizeQueueLastRunAt(queue.lastRunAt),
     },
+    updates: {
+      enabled: normalizeUpdateEnabled(updates.enabled),
+      channel: normalizeUpdateChannel(updates.channel),
+      checkIntervalHours: normalizeUpdateCheckIntervalHours(updates.checkIntervalHours),
+      sourceRepo: normalizeUpdateSourceRepo(updates.sourceRepo),
+    },
     missions:
       parsed?.missions && typeof parsed.missions === "object" && !Array.isArray(parsed.missions)
         ? parsed.missions
@@ -569,7 +618,7 @@ function normalizeParsedConfig(parsed: any) {
 
 function shouldPersistNormalizedConfig(parsed: any) {
   const parsedVersion = typeof parsed?.version === "number" ? parsed.version : 2;
-  if (parsedVersion < 4) {
+  if (parsedVersion < 5) {
     return true;
   }
   if (!parsed || typeof parsed !== "object") {
@@ -579,6 +628,9 @@ function shouldPersistNormalizedConfig(parsed: any) {
     return true;
   }
   if (!("access" in parsed) || !("queue" in parsed)) {
+    return true;
+  }
+  if (!("updates" in parsed)) {
     return true;
   }
   return false;

@@ -203,8 +203,21 @@ $kaizenHome = if (-not [string]::IsNullOrWhiteSpace($env:KAIZEN_HOME)) {
 $installMetadataPath = Join-Path $kaizenHome "install.json"
 try {
   New-Item -ItemType Directory -Path $kaizenHome -Force | Out-Null
+  $installedVersion = $null
+  $packagePath = Join-Path $InstallDir "package.json"
+  if (Test-Path $packagePath) {
+    try {
+      $package = Get-Content -Path $packagePath -Raw | ConvertFrom-Json
+      $versionCandidate = "$($package.version)".Trim()
+      if (-not [string]::IsNullOrWhiteSpace($versionCandidate)) {
+        $installedVersion = $versionCandidate
+      }
+    } catch {
+      $installedVersion = $null
+    }
+  }
   $installMetadata = @{
-    version = 1
+    version = 2
     platform = "win32"
     installDir = $InstallDir
     binDir = $BinDir
@@ -214,6 +227,10 @@ try {
       binDir = $BinDir
     }
     installedAt = (Get-Date).ToString("o")
+    repoUrl = $RepoUrl
+    channel = "stable"
+    installedVersion = $installedVersion
+    installRef = "branch:$Branch"
   }
   $installMetadata | ConvertTo-Json -Depth 8 | Set-Content -Path $installMetadataPath -Encoding UTF8
 } catch {

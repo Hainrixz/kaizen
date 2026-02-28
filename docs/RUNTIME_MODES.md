@@ -60,6 +60,22 @@ Modes:
 
 Default behavior requires typed confirmation (`uninstall kaizen`), unless `--yes` is passed.
 
+## Update commands
+
+Kaizen update checks are sourced from GitHub Releases (`Hainrixz/kaizen`) and cached for 24 hours.
+
+```bash
+kaizen update --check
+kaizen update
+```
+
+Behavior:
+
+- startup notifications are shown only on interactive commands (`kaizen`, `start`, `chat`, `ui`)
+- `kaizen update` is manual (no silent auto-update)
+- if service was running, update stops it first and restarts it by default
+- use `--no-restart-service` to keep service stopped after update
+
 ## Foreground worker mode
 
 For debugging or temporary channel processing:

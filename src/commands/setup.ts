@@ -179,7 +179,7 @@ export async function setupCommand(options: any = {}) {
 
   const nextConfig = {
     ...current,
-    version: 4,
+    version: 5,
     defaults: {
       ...current.defaults,
       workspace,
@@ -242,6 +242,13 @@ export async function setupCommand(options: any = {}) {
       ...(current.queue ?? {}),
       defaultWorkspaceHash: current.queue?.defaultWorkspaceHash ?? null,
       lastRunAt: current.queue?.lastRunAt ?? null,
+    },
+    updates: {
+      ...(current.updates ?? {}),
+      enabled: current.updates?.enabled ?? true,
+      channel: current.updates?.channel ?? "stable",
+      checkIntervalHours: current.updates?.checkIntervalHours ?? 24,
+      sourceRepo: current.updates?.sourceRepo ?? "Hainrixz/kaizen",
     },
     auth: {
       ...current.auth,

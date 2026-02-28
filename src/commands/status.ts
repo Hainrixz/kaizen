@@ -38,6 +38,10 @@ export async function statusCommand() {
   console.log(`Allow paths: ${snapshot.access.allowPaths.join(", ") || "(none)"}`);
   console.log(`Auth provider: ${snapshot.authProvider}`);
   console.log(
+    `Updates: ${config.updates?.enabled === false ? "disabled" : "enabled"} (${config.updates?.channel ?? "stable"}, every ${config.updates?.checkIntervalHours ?? 24}h)`,
+  );
+  console.log(`Update source: ${config.updates?.sourceRepo ?? "Hainrixz/kaizen"}`);
+  console.log(
     `Context guard: ${snapshot.contextGuardEnabled ? `enabled (${snapshot.contextGuardThresholdPct}%)` : "disabled"}`,
   );
   console.log(
