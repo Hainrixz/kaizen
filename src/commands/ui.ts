@@ -6,77 +6,130 @@
  * ─────────────────────────────────────────────
  */
 
-import http from "node:http";
-import { readConfig } from "../config.js";
+import { spawn } from "node:child_process";
+import {
+  ensureControlUiAssets,
+  resolveControlUiStaticDir,
+  startControlUiServer,
+} from "../ui-server/server.js";
+import { sanitizeSessionId } from "../ui-server/session-store.js";
+import { startHeartbeat } from "../runtime/heartbeat.js";
 
-function renderUiHtml(config: any, port: number) {
-  const abilityProfile = config.defaults.abilityProfile ?? "web-design";
-  const modelProvider = config.defaults.modelProvider;
-  const localRuntime =
-    modelProvider === "local" ? config.defaults.localRuntime ?? "ollama" : "n/a";
+type UiCommandOptions = {
+  host?: string;
+  port?: number;
+  noOpen?: boolean;
+  session?: string;
+  dryRun?: boolean;
+};
 
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Kaizen UI</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; padding: 32px; background: #0f172a; color: #e2e8f0; }
-    .card { max-width: 760px; margin: 0 auto; padding: 24px; border: 1px solid #334155; border-radius: 16px; background: #111827; }
-    h1 { margin-top: 0; }
-    .muted { color: #94a3b8; }
-    code { background: #1e293b; padding: 2px 6px; border-radius: 6px; }
-    ul { line-height: 1.8; }
-  </style>
-</head>
-<body>
-  <div class="card">
-    <h1>Kaizen Local UI</h1>
-    <p class="muted">Focused profile is active and ready.</p>
-    <ul>
-      <li>Ability profile: <strong>${abilityProfile}</strong></li>
-      <li>Model provider: <strong>${modelProvider}</strong></li>
-      <li>Local runtime: <strong>${localRuntime}</strong></li>
-      <li>Configured interaction mode: <strong>${config.defaults.interactionMode}</strong></li>
-    </ul>
-    <p>To start terminal chat now, run:</p>
-    <p><code>corepack pnpm start chat</code></p>
-    <p class="muted">UI chat panel comes in a later update. This v1 page confirms onboarding state and launch commands.</p>
-    <p class="muted">Listening on <code>http://localhost:${port}</code></p>
-  </div>
-</body>
-</html>`;
+function normalizeHost(rawHost: unknown) {
+  if (typeof rawHost !== "string" || rawHost.trim().length === 0) {
+    return "127.0.0.1";
+  }
+  return rawHost.trim();
 }
 
-export async function uiCommand(options: any = {}) {
-  const config = readConfig();
-  const port = Number.isInteger(options.port) ? options.port : 3000;
+function normalizePort(rawPort: unknown) {
+  if (typeof rawPort === "number" && Number.isInteger(rawPort) && rawPort > 0 && rawPort <= 65535) {
+    return rawPort;
+  }
+  if (typeof rawPort === "string" && rawPort.trim().length > 0) {
+    const parsed = Number.parseInt(rawPort.trim(), 10);
+    if (!Number.isNaN(parsed)) {
+      return normalizePort(parsed);
+    }
+  }
+  return 3000;
+}
+
+function toDisplayUrl(host: string, port: number) {
+  const displayHost = host === "0.0.0.0" ? "127.0.0.1" : host;
+  return `http://${displayHost}:${port}`;
+}
+
+function tryOpenBrowser(url: string) {
+  let command = "";
+  let args: string[] = [];
+
+  if (process.platform === "darwin") {
+    command = "open";
+    args = [url];
+  } else if (process.platform === "win32") {
+    command = "cmd";
+    args = ["/c", "start", "", url];
+  } else {
+    command = "xdg-open";
+    args = [url];
+  }
+
+  try {
+    const child = spawn(command, args, {
+      stdio: "ignore",
+      detached: true,
+    });
+    child.unref();
+  } catch {
+    // no-op if browser open fails
+  }
+}
+
+export async function uiCommand(options: UiCommandOptions = {}) {
+  const host = normalizeHost(options.host);
+  const port = normalizePort(options.port);
+  const sessionId = sanitizeSessionId(options.session);
+  const noOpen = Boolean(options.noOpen);
+  const staticDir = resolveControlUiStaticDir();
 
   if (options.dryRun) {
     console.log("");
-    console.log(`UI dry run: would start Kaizen UI at http://localhost:${port}`);
+    console.log(`UI dry run: would start Kaizen UI at ${toDisplayUrl(host, port)}`);
+    console.log(`Session: ${sessionId}`);
+    console.log(`Static assets: ${staticDir}`);
     return true;
   }
 
-  const server = http.createServer((req, res) => {
-    if (req.url === "/health") {
-      res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
-      res.end(JSON.stringify({ ok: true, profile: config.defaults.abilityProfile }));
-      return;
-    }
+  if (!ensureControlUiAssets(staticDir)) {
+    throw new Error(
+      "Control UI assets are missing. Run `pnpm run build` (or `pnpm run ui:build`) before `kaizen ui`.",
+    );
+  }
 
-    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    res.end(renderUiHtml(config, port));
+  const server = await startControlUiServer({
+    host,
+    port,
+    sessionId,
+    staticDir,
+  });
+  const heartbeat = startHeartbeat({
+    runtime: "manual",
   });
 
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(port, "127.0.0.1", () => resolve());
-  });
+  const displayUrl = toDisplayUrl(host, port);
+
+  if (!noOpen) {
+    tryOpenBrowser(displayUrl);
+  }
 
   console.log("");
-  console.log(`Kaizen UI running at http://localhost:${port}`);
+  console.log(`Kaizen UI running at ${displayUrl}`);
+  console.log(`WebSocket endpoint: ws://${host}:${port}/ws`);
+  console.log(`Session: ${sessionId}`);
   console.log("Press Ctrl+C to stop.");
+
+  const stop = async () => {
+    heartbeat.stop();
+    await heartbeat.wait();
+    await server.close();
+    process.exit(0);
+  };
+
+  process.once("SIGINT", () => {
+    void stop();
+  });
+  process.once("SIGTERM", () => {
+    void stop();
+  });
+
   return true;
 }

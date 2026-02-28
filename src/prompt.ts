@@ -42,6 +42,7 @@ export function buildKaizenPrompt(params: KaizenPromptParams) {
   const profilePromptFile = path.join(profileDir, "SYSTEM_PROMPT.md");
   const walkthroughFile = path.join(profileDir, "WALKTHROUGH.md");
   const skillsIndexFile = path.join(profileDir, "SKILLS_INDEX.md");
+  const designSkillsFile = path.join(profileDir, "DESIGN_SKILLS.md");
   const workflowFile = path.join(profileDir, "WORKFLOW.md");
   const outputTemplateFile = path.join(profileDir, "OUTPUT_TEMPLATE.md");
   const marketplaceSkillsFile = path.join(profileDir, "MARKETPLACE_SKILLS.md");
@@ -49,6 +50,7 @@ export function buildKaizenPrompt(params: KaizenPromptParams) {
   const profilePromptContents = readTextFileIfExists(profilePromptFile);
   const walkthroughContents = readTextFileIfExists(walkthroughFile);
   const skillsIndexContents = readTextFileIfExists(skillsIndexFile);
+  const designSkillsContents = readTextFileIfExists(designSkillsFile);
   const workflowContents = readTextFileIfExists(workflowFile);
   const outputTemplateContents = readTextFileIfExists(outputTemplateFile);
   const marketplaceSkillsContents = readTextFileIfExists(marketplaceSkillsFile);
@@ -76,6 +78,12 @@ export function buildKaizenPrompt(params: KaizenPromptParams) {
     promptSections.push(`Skills index loaded from ${skillsIndexFile}:`);
     promptSections.push(skillsIndexContents);
     usedFiles.push(skillsIndexFile);
+  }
+
+  if (designSkillsContents) {
+    promptSections.push(`Design skills guidance loaded from ${designSkillsFile}:`);
+    promptSections.push(designSkillsContents);
+    usedFiles.push(designSkillsFile);
   }
 
   if (workflowContents) {

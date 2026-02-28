@@ -32,6 +32,7 @@ import { onboardCommand } from "./onboard.js";
 import { installAbilityProfile } from "../mission-pack.js";
 import { installMarketplaceSkillsForAbility } from "../skills-marketplace.js";
 import { installAndStartServiceForAlwaysOnMode } from "./service.js";
+import { launchKaizenAfterSetup, normalizeAutoStartOption } from "./post-setup-launch.js";
 
 function parseAcceptAlwaysOnRisk(options: any) {
   if (typeof options.acceptAlwaysOnRisk === "boolean") {
@@ -47,6 +48,10 @@ function parseAcceptAlwaysOnRisk(options: any) {
 export async function setupCommand(options: any = {}) {
   const runWizard = Boolean(options.wizard);
   const runNonInteractiveWizard = Boolean(options.nonInteractive);
+  const autoStart = normalizeAutoStartOption(
+    options.noAutoStart === true ? false : options.autoStart,
+    true,
+  );
 
   if (runWizard || runNonInteractiveWizard) {
     await onboardCommand({
@@ -71,6 +76,7 @@ export async function setupCommand(options: any = {}) {
       contextGuardThresholdPct: options.contextGuardThresholdPct,
       marketplaceSkills: options.marketplaceSkills,
       forceMarketplaceSkills: options.forceMarketplaceSkills,
+      autoStart,
       login: options.login,
       skipLogin: options.skipLogin,
     });
@@ -173,7 +179,7 @@ export async function setupCommand(options: any = {}) {
 
   const nextConfig = {
     ...current,
-    version: 3,
+    version: 4,
     defaults: {
       ...current.defaults,
       workspace,
@@ -206,6 +212,36 @@ export async function setupCommand(options: any = {}) {
         runMode === "always-on" && acceptAlwaysOnRisk
           ? current.service.riskAcceptedAt ?? new Date().toISOString()
           : current.service.riskAcceptedAt,
+    },
+    engine: {
+      ...(current.engine ?? {}),
+      runner: current.engine?.runner ?? "codex",
+    },
+    heartbeat: {
+      ...(current.heartbeat ?? {}),
+      enabled: current.heartbeat?.enabled ?? true,
+      intervalMs: current.heartbeat?.intervalMs ?? 1500,
+      lastTickAt: current.heartbeat?.lastTickAt ?? null,
+    },
+    autonomy: {
+      ...(current.autonomy ?? {}),
+      enabled: current.autonomy?.enabled ?? false,
+      mode: current.autonomy?.mode ?? "queued",
+      freeRun: {
+        maxTurns: current.autonomy?.freeRun?.maxTurns ?? 5,
+        maxMinutes: current.autonomy?.freeRun?.maxMinutes ?? 20,
+      },
+    },
+    access: {
+      ...(current.access ?? {}),
+      scope: current.access?.scope ?? "workspace",
+      allowPaths: [...(current.access?.allowPaths ?? [])],
+      fullAccessLastEnabledAt: current.access?.fullAccessLastEnabledAt ?? null,
+    },
+    queue: {
+      ...(current.queue ?? {}),
+      defaultWorkspaceHash: current.queue?.defaultWorkspaceHash ?? null,
+      lastRunAt: current.queue?.lastRunAt ?? null,
     },
     auth: {
       ...current.auth,
@@ -284,4 +320,8 @@ export async function setupCommand(options: any = {}) {
   }
   console.log(`Memory file: ${installResult.memoryFilePath}`);
   console.log("Run `kaizen onboard` anytime for the guided setup flow.");
+
+  await launchKaizenAfterSetup(nextConfig, {
+    autoStart,
+  });
 }

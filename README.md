@@ -1,6 +1,7 @@
 # Kaizen
 
-Focused project-builder agent CLI with guided onboarding, profile-based behavior, optional always-on runtime, and Telegram channel support.
+Focused project-builder agent CLI with guided onboarding, profile-based behavior, optional always-on runtime, and Telegram channel support.  
+Kaizen runtime logic is independent; model providers are plugged in as backend adapters (Codex is the first adapter).
 
 ## Install
 
@@ -40,6 +41,18 @@ Kaizen supports two runtime modes:
 1. `manual` (default): Kaizen runs in foreground and stops when the terminal closes.
 2. `always-on` (opt-in): Kaizen runs as an OS service (`launchd`, `systemd --user`, or Windows `schtasks`).
 
+Heartbeat:
+
+- heartbeat is enabled by default in both manual and service runtime contexts.
+- heartbeat writes status to `~/.kaizen/state/heartbeat/status.json`.
+- if autonomy is enabled in `queued` mode, heartbeat can execute queued tasks.
+
+Autonomy defaults:
+
+- autonomy is `off` by default.
+- default autonomy mode is `queued`.
+- `free-run` requires explicit manual start and budget (`max turns` + `max minutes`).
+
 Kaizen also provides a local browser UI at `localhost:3000` with chat, runtime status, service controls, telegram controls, and profile file references.
 
 UI defaults:
@@ -57,6 +70,8 @@ During onboarding/install:
 
 ## Core commands
 
+- `kaizen` (no args): launch interactive mode using saved config defaults
+- `kaizen config` (or `kaizen settings`): switch saved defaults like terminal vs localhost
 - `kaizen onboard`
 - `kaizen setup`
 - `kaizen start`
@@ -64,7 +79,25 @@ During onboarding/install:
 - `kaizen ui`
 - `kaizen status`
 - `kaizen uninstall`
+- `kaizen autonomy status|configure|enable|disable|start|stop`
+- `kaizen queue add|list|remove|clear|run-next`
 - `kaizen init <projectName>`
+
+Use `kaizen --help` to show full command help.
+
+Quick examples:
+
+```bash
+kaizen config
+```
+
+```bash
+kaizen config --interaction localhost
+```
+
+```bash
+kaizen config --interaction terminal
+```
 
 `kaizen ui` options:
 
@@ -147,15 +180,26 @@ Config path:
 
 Schema version:
 
-- `version: 3`
+- `version: 4`
 
 Major sections:
 
 - `defaults.runMode`
 - `channels.telegram`
 - `service`
+- `engine.runner`
+- `heartbeat`
+- `autonomy`
+- `access`
+- `queue`
+Older configs are automatically normalized to v4 on read.
 
-Older v2 configs are automatically normalized to v3 on read.
+`kaizen config` now supports:
+
+- `--interaction terminal|localhost`
+- `--autonomy on|off`
+- `--access workspace|workspace-plus|full`
+- `--allow-path <path>` (repeatable for `workspace-plus`)
 
 ## Design skill pack
 
@@ -185,6 +229,9 @@ corepack pnpm ui:dev
 
 - `docs/ARCHITECTURE_NOTES.md`
 - `docs/RUNTIME_MODES.md`
+- `docs/AUTONOMY.md`
+- `docs/ACCESS_BOUNDARIES.md`
+- `docs/QUEUE_RUNTIME.md`
 - `docs/TELEGRAM_CHANNEL.md`
 - `docs/SECURITY_DISCLAIMER.md`
 - `docs/LOCAL_UI_ARCHITECTURE.md`

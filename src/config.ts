@@ -18,18 +18,66 @@ const VALID_INTERACTION_MODES = new Set(["terminal", "localhost"]);
 const VALID_LOCAL_RUNTIMES = new Set(["ollama", "lmstudio"]);
 const VALID_RUN_MODES = new Set(["manual", "always-on"]);
 const VALID_SERVICE_STATES = new Set(["running", "stopped", "unknown"]);
+const VALID_ENGINE_RUNNERS = new Set(["codex"]);
+const VALID_AUTONOMY_MODES = new Set(["queued", "free-run"]);
+const VALID_ACCESS_SCOPES = new Set(["workspace", "workspace-plus", "full"]);
 
 const DEFAULT_CONTEXT_GUARD_THRESHOLD_PCT = 65;
 const DEFAULT_TELEGRAM_POLL_INTERVAL_MS = 1500;
 const DEFAULT_TELEGRAM_LONG_POLL_TIMEOUT_SEC = 25;
+const DEFAULT_HEARTBEAT_INTERVAL_MS = 1500;
+const DEFAULT_AUTONOMY_MAX_TURNS = 5;
+const DEFAULT_AUTONOMY_MAX_MINUTES = 20;
 
 const SHELL_OPERATOR_PATTERN = /(?:\r|\n|&&|\|\||;|\||`|\$\(|\$\{)/;
 const SHELL_COMMAND_PREFIX_PATTERN =
   /^\s*(?:cd|bash|sh|zsh|fish|node|npm|pnpm|yarn|npx|corepack|curl|git)\b/i;
 
+function normalizeBoolean(rawValue: unknown, fallback: boolean) {
+  if (typeof rawValue === "boolean") {
+    return rawValue;
+  }
+  if (typeof rawValue === "string" && rawValue.trim().length > 0) {
+    const normalized = rawValue.trim().toLowerCase();
+    if (normalized === "0" || normalized === "false" || normalized === "off" || normalized === "no") {
+      return false;
+    }
+    if (normalized === "1" || normalized === "true" || normalized === "on" || normalized === "yes") {
+      return true;
+    }
+  }
+  return fallback;
+}
+
+function normalizeNullableIsoString(rawValue: unknown) {
+  if (typeof rawValue !== "string") {
+    return null;
+  }
+  const trimmed = rawValue.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeBoundedInteger(
+  rawValue: unknown,
+  fallback: number,
+  bounds: { min: number; max: number },
+) {
+  if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
+    const rounded = Math.round(rawValue);
+    return Math.max(bounds.min, Math.min(bounds.max, rounded));
+  }
+  if (typeof rawValue === "string" && rawValue.trim().length > 0) {
+    const parsed = Number.parseInt(rawValue.trim(), 10);
+    if (!Number.isNaN(parsed)) {
+      return normalizeBoundedInteger(parsed, fallback, bounds);
+    }
+  }
+  return fallback;
+}
+
 export function getDefaultConfig() {
   return {
-    version: 3,
+    version: 4,
     defaults: {
       profile: "default",
       workspace: path.join(os.homedir(), "kaizen-workspace"),
@@ -63,6 +111,31 @@ export function getDefaultConfig() {
       runtime: "node",
       riskAcceptedAt: null,
       lastKnownStatus: "unknown",
+    },
+    engine: {
+      runner: "codex",
+    },
+    heartbeat: {
+      enabled: true,
+      intervalMs: DEFAULT_HEARTBEAT_INTERVAL_MS,
+      lastTickAt: null,
+    },
+    autonomy: {
+      enabled: false,
+      mode: "queued",
+      freeRun: {
+        maxTurns: DEFAULT_AUTONOMY_MAX_TURNS,
+        maxMinutes: DEFAULT_AUTONOMY_MAX_MINUTES,
+      },
+    },
+    access: {
+      scope: "workspace",
+      allowPaths: [],
+      fullAccessLastEnabledAt: null,
+    },
+    queue: {
+      defaultWorkspaceHash: null,
+      lastRunAt: null,
     },
     missions: {},
   };
@@ -145,72 +218,22 @@ export function normalizeLocalRuntime(rawRuntime: unknown) {
 }
 
 export function normalizeContextGuardEnabled(rawEnabled: unknown) {
-  if (typeof rawEnabled === "boolean") {
-    return rawEnabled;
-  }
-  if (typeof rawEnabled === "string" && rawEnabled.trim().length > 0) {
-    const normalized = rawEnabled.trim().toLowerCase();
-    if (normalized === "0" || normalized === "false" || normalized === "off" || normalized === "no") {
-      return false;
-    }
-    if (normalized === "1" || normalized === "true" || normalized === "on" || normalized === "yes") {
-      return true;
-    }
-  }
-  return true;
+  return normalizeBoolean(rawEnabled, true);
 }
 
 export function normalizeTelegramEnabled(rawEnabled: unknown) {
-  if (typeof rawEnabled === "boolean") {
-    return rawEnabled;
-  }
-  if (typeof rawEnabled === "string" && rawEnabled.trim().length > 0) {
-    const normalized = rawEnabled.trim().toLowerCase();
-    if (normalized === "0" || normalized === "false" || normalized === "off" || normalized === "no") {
-      return false;
-    }
-    if (normalized === "1" || normalized === "true" || normalized === "on" || normalized === "yes") {
-      return true;
-    }
-  }
-  return false;
+  return normalizeBoolean(rawEnabled, false);
 }
 
 export function normalizeContextGuardThresholdPct(rawThreshold: unknown) {
-  const fallback = DEFAULT_CONTEXT_GUARD_THRESHOLD_PCT;
-  if (typeof rawThreshold === "number" && Number.isFinite(rawThreshold)) {
-    const rounded = Math.round(rawThreshold);
-    if (rounded < 40) {
-      return 40;
-    }
-    if (rounded > 90) {
-      return 90;
-    }
-    return rounded;
-  }
-  if (typeof rawThreshold === "string" && rawThreshold.trim().length > 0) {
-    const parsed = Number.parseInt(rawThreshold.trim(), 10);
-    if (!Number.isNaN(parsed)) {
-      return normalizeContextGuardThresholdPct(parsed);
-    }
-  }
-  return fallback;
+  return normalizeBoundedInteger(rawThreshold, DEFAULT_CONTEXT_GUARD_THRESHOLD_PCT, {
+    min: 40,
+    max: 90,
+  });
 }
 
 export function normalizeMarketplaceSkillsEnabled(rawEnabled: unknown) {
-  if (typeof rawEnabled === "boolean") {
-    return rawEnabled;
-  }
-  if (typeof rawEnabled === "string" && rawEnabled.trim().length > 0) {
-    const normalized = rawEnabled.trim().toLowerCase();
-    if (normalized === "0" || normalized === "false" || normalized === "off" || normalized === "no") {
-      return false;
-    }
-    if (normalized === "1" || normalized === "true" || normalized === "on" || normalized === "yes") {
-      return true;
-    }
-  }
-  return true;
+  return normalizeBoolean(rawEnabled, true);
 }
 
 export function normalizeTelegramBotToken(rawToken: unknown) {
@@ -256,31 +279,17 @@ export function normalizeTelegramAllowFrom(rawAllowFrom: unknown): string[] {
 }
 
 export function normalizeTelegramPollIntervalMs(rawValue: unknown) {
-  if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
-    const rounded = Math.round(rawValue);
-    return Math.min(30_000, Math.max(300, rounded));
-  }
-  if (typeof rawValue === "string" && rawValue.trim().length > 0) {
-    const parsed = Number.parseInt(rawValue.trim(), 10);
-    if (!Number.isNaN(parsed)) {
-      return normalizeTelegramPollIntervalMs(parsed);
-    }
-  }
-  return DEFAULT_TELEGRAM_POLL_INTERVAL_MS;
+  return normalizeBoundedInteger(rawValue, DEFAULT_TELEGRAM_POLL_INTERVAL_MS, {
+    min: 300,
+    max: 30_000,
+  });
 }
 
 export function normalizeTelegramLongPollTimeoutSec(rawValue: unknown) {
-  if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
-    const rounded = Math.round(rawValue);
-    return Math.min(55, Math.max(5, rounded));
-  }
-  if (typeof rawValue === "string" && rawValue.trim().length > 0) {
-    const parsed = Number.parseInt(rawValue.trim(), 10);
-    if (!Number.isNaN(parsed)) {
-      return normalizeTelegramLongPollTimeoutSec(parsed);
-    }
-  }
-  return DEFAULT_TELEGRAM_LONG_POLL_TIMEOUT_SEC;
+  return normalizeBoundedInteger(rawValue, DEFAULT_TELEGRAM_LONG_POLL_TIMEOUT_SEC, {
+    min: 5,
+    max: 55,
+  });
 }
 
 export function normalizeServiceInstalled(rawValue: unknown) {
@@ -299,11 +308,73 @@ export function normalizeServiceLastKnownStatus(rawValue: unknown) {
 }
 
 export function normalizeServiceRiskAcceptedAt(rawValue: unknown) {
+  return normalizeNullableIsoString(rawValue);
+}
+
+export function normalizeEngineRunner(rawValue: unknown) {
   if (typeof rawValue !== "string") {
-    return null;
+    return "codex";
   }
-  const trimmed = rawValue.trim();
-  return trimmed.length > 0 ? trimmed : null;
+  const normalized = rawValue.trim().toLowerCase();
+  if (!VALID_ENGINE_RUNNERS.has(normalized)) {
+    return "codex";
+  }
+  return normalized;
+}
+
+export function normalizeHeartbeatEnabled(rawValue: unknown) {
+  return normalizeBoolean(rawValue, true);
+}
+
+export function normalizeHeartbeatIntervalMs(rawValue: unknown) {
+  return normalizeBoundedInteger(rawValue, DEFAULT_HEARTBEAT_INTERVAL_MS, {
+    min: 500,
+    max: 60_000,
+  });
+}
+
+export function normalizeHeartbeatLastTickAt(rawValue: unknown) {
+  return normalizeNullableIsoString(rawValue);
+}
+
+export function normalizeAutonomyEnabled(rawValue: unknown) {
+  return normalizeBoolean(rawValue, false);
+}
+
+export function normalizeAutonomyMode(rawValue: unknown) {
+  if (typeof rawValue !== "string") {
+    return "queued";
+  }
+  const normalized = rawValue.trim().toLowerCase();
+  if (!VALID_AUTONOMY_MODES.has(normalized)) {
+    return "queued";
+  }
+  return normalized;
+}
+
+export function normalizeAutonomyMaxTurns(rawValue: unknown) {
+  return normalizeBoundedInteger(rawValue, DEFAULT_AUTONOMY_MAX_TURNS, {
+    min: 1,
+    max: 200,
+  });
+}
+
+export function normalizeAutonomyMaxMinutes(rawValue: unknown) {
+  return normalizeBoundedInteger(rawValue, DEFAULT_AUTONOMY_MAX_MINUTES, {
+    min: 1,
+    max: 24 * 60,
+  });
+}
+
+export function normalizeAccessScope(rawValue: unknown) {
+  if (typeof rawValue !== "string") {
+    return "workspace";
+  }
+  const normalized = rawValue.trim().toLowerCase();
+  if (!VALID_ACCESS_SCOPES.has(normalized)) {
+    return "workspace";
+  }
+  return normalized;
 }
 
 function resolveRawPath(rawPath: string) {
@@ -326,6 +397,58 @@ export function isUnsafeWorkspaceInput(rawWorkspace: unknown) {
     return false;
   }
   return SHELL_OPERATOR_PATTERN.test(trimmed) || SHELL_COMMAND_PREFIX_PATTERN.test(trimmed);
+}
+
+function normalizeAllowPathEntry(rawEntry: unknown): string | null {
+  if (typeof rawEntry !== "string") {
+    return null;
+  }
+  const trimmed = rawEntry.trim();
+  if (!trimmed || isUnsafeWorkspaceInput(trimmed)) {
+    return null;
+  }
+  const resolved = resolveRawPath(trimmed);
+  if (isUnsafeWorkspaceInput(resolved)) {
+    return null;
+  }
+  return resolved;
+}
+
+export function normalizeAccessAllowPaths(rawValue: unknown): string[] {
+  const entries =
+    typeof rawValue === "string"
+      ? rawValue
+          .split(",")
+          .map((entry) => entry.trim())
+          .filter(Boolean)
+      : Array.isArray(rawValue)
+        ? rawValue
+        : [];
+
+  const unique = new Set<string>();
+  for (const entry of entries) {
+    const normalized = normalizeAllowPathEntry(entry);
+    if (normalized) {
+      unique.add(normalized);
+    }
+  }
+  return [...unique];
+}
+
+export function normalizeFullAccessLastEnabledAt(rawValue: unknown) {
+  return normalizeNullableIsoString(rawValue);
+}
+
+export function normalizeQueueDefaultWorkspaceHash(rawValue: unknown) {
+  if (typeof rawValue !== "string") {
+    return null;
+  }
+  const trimmed = rawValue.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export function normalizeQueueLastRunAt(rawValue: unknown) {
+  return normalizeNullableIsoString(rawValue);
 }
 
 export function resolveWorkspacePath(rawWorkspace: unknown, fallbackPath: unknown) {
@@ -360,13 +483,19 @@ function normalizeParsedConfig(parsed: any) {
   const channels = parsed?.channels ?? {};
   const telegram = channels?.telegram ?? {};
   const service = parsed?.service ?? {};
+  const engine = parsed?.engine ?? {};
+  const heartbeat = parsed?.heartbeat ?? {};
+  const autonomy = parsed?.autonomy ?? {};
+  const autonomyFreeRun = autonomy?.freeRun ?? {};
+  const access = parsed?.access ?? {};
+  const queue = parsed?.queue ?? {};
 
   const modelProvider = normalizeModelProvider(defaults.modelProvider ?? defaults.authProvider);
   const abilityProfile = normalizeAbilityProfile(defaults.abilityProfile ?? defaults.mission);
   const mission = abilityProfile;
 
   const normalized = {
-    version: 3,
+    version: 4,
     defaults: {
       profile:
         typeof defaults.profile === "string" && defaults.profile.trim().length > 0
@@ -387,10 +516,7 @@ function normalizeParsedConfig(parsed: any) {
     },
     auth: {
       provider: normalizeAuthProvider(auth.provider ?? defaults.authProvider),
-      lastLoginAt:
-        typeof auth.lastLoginAt === "string" && auth.lastLoginAt.trim().length > 0
-          ? auth.lastLoginAt
-          : null,
+      lastLoginAt: normalizeNullableIsoString(auth.lastLoginAt),
     },
     channels: {
       telegram: {
@@ -407,6 +533,31 @@ function normalizeParsedConfig(parsed: any) {
       riskAcceptedAt: normalizeServiceRiskAcceptedAt(service.riskAcceptedAt),
       lastKnownStatus: normalizeServiceLastKnownStatus(service.lastKnownStatus),
     },
+    engine: {
+      runner: normalizeEngineRunner(engine.runner),
+    },
+    heartbeat: {
+      enabled: normalizeHeartbeatEnabled(heartbeat.enabled),
+      intervalMs: normalizeHeartbeatIntervalMs(heartbeat.intervalMs),
+      lastTickAt: normalizeHeartbeatLastTickAt(heartbeat.lastTickAt),
+    },
+    autonomy: {
+      enabled: normalizeAutonomyEnabled(autonomy.enabled),
+      mode: normalizeAutonomyMode(autonomy.mode),
+      freeRun: {
+        maxTurns: normalizeAutonomyMaxTurns(autonomyFreeRun.maxTurns),
+        maxMinutes: normalizeAutonomyMaxMinutes(autonomyFreeRun.maxMinutes),
+      },
+    },
+    access: {
+      scope: normalizeAccessScope(access.scope),
+      allowPaths: normalizeAccessAllowPaths(access.allowPaths),
+      fullAccessLastEnabledAt: normalizeFullAccessLastEnabledAt(access.fullAccessLastEnabledAt),
+    },
+    queue: {
+      defaultWorkspaceHash: normalizeQueueDefaultWorkspaceHash(queue.defaultWorkspaceHash),
+      lastRunAt: normalizeQueueLastRunAt(queue.lastRunAt),
+    },
     missions:
       parsed?.missions && typeof parsed.missions === "object" && !Array.isArray(parsed.missions)
         ? parsed.missions
@@ -414,6 +565,23 @@ function normalizeParsedConfig(parsed: any) {
   };
 
   return normalized;
+}
+
+function shouldPersistNormalizedConfig(parsed: any) {
+  const parsedVersion = typeof parsed?.version === "number" ? parsed.version : 2;
+  if (parsedVersion < 4) {
+    return true;
+  }
+  if (!parsed || typeof parsed !== "object") {
+    return true;
+  }
+  if (!("engine" in parsed) || !("heartbeat" in parsed) || !("autonomy" in parsed)) {
+    return true;
+  }
+  if (!("access" in parsed) || !("queue" in parsed)) {
+    return true;
+  }
+  return false;
 }
 
 export function readConfig() {
@@ -428,13 +596,11 @@ export function readConfig() {
     const parsed = JSON.parse(fs.readFileSync(configPath, "utf8"));
     const normalized = normalizeParsedConfig(parsed);
 
-    const parsedVersion = typeof parsed?.version === "number" ? parsed.version : 2;
-    const shouldPersistMigration = parsedVersion < 3;
-    if (shouldPersistMigration) {
+    if (shouldPersistNormalizedConfig(parsed)) {
       try {
         writeConfig(normalized);
       } catch {
-        // keep non-destructive read behavior if writing fails
+        // Keep non-destructive read behavior if writing fails.
       }
     }
 

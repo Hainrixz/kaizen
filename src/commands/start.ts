@@ -18,7 +18,10 @@ export async function startCommand(options: any = {}) {
 
   if (interactionMode === "localhost") {
     return uiCommand({
+      host: options.host,
       port: options.port,
+      noOpen: Boolean(options.noOpen),
+      session: options.session,
       dryRun: options.dryRun,
     });
   }

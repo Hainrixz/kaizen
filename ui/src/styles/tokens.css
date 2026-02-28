@@ -1,0 +1,84 @@
+:root {
+  color-scheme: dark;
+
+  --kaizen-font: "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif;
+
+  --kaizen-bg: #070d1d;
+  --kaizen-bg-2: #0a1530;
+  --kaizen-bg-3: #102248;
+  --kaizen-text: #eaf1ff;
+  --kaizen-text-muted: #a8bddf;
+  --kaizen-text-subtle: #7f96be;
+
+  --kaizen-primary: #5b93ff;
+  --kaizen-primary-strong: #3377ff;
+  --kaizen-secondary: #8bb4ff;
+  --kaizen-success: #22c39c;
+  --kaizen-warning: #f3a64a;
+  --kaizen-danger: #e56e6e;
+
+  --glass-bg: rgba(18, 34, 72, 0.44);
+  --glass-bg-strong: rgba(16, 31, 65, 0.66);
+  --glass-border: rgba(154, 186, 255, 0.28);
+  --glass-border-strong: rgba(189, 211, 255, 0.4);
+  --glass-highlight: rgba(235, 244, 255, 0.18);
+
+  --shadow-sm: 0 8px 20px rgba(1, 8, 24, 0.24);
+  --shadow-md: 0 16px 42px rgba(1, 8, 24, 0.36);
+  --shadow-lg: 0 24px 58px rgba(1, 8, 24, 0.45);
+  --shadow-focus: 0 0 0 2px rgba(51, 119, 255, 0.25), 0 0 0 4px rgba(51, 119, 255, 0.45);
+
+  --radius-xs: 10px;
+  --radius-sm: 14px;
+  --radius-md: 18px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+
+  --space-1: 6px;
+  --space-2: 10px;
+  --space-3: 14px;
+  --space-4: 18px;
+  --space-5: 24px;
+  --space-6: 30px;
+
+  --line-soft: 1px solid var(--glass-border);
+  --line-strong: 1px solid var(--glass-border-strong);
+
+  --dur-fast: 140ms;
+  --dur-base: 220ms;
+  --dur-slow: 360ms;
+  --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --density-gap: 1;
+  --density-padding: 1;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --kaizen-bg: #f2f7ff;
+  --kaizen-bg-2: #e6efff;
+  --kaizen-bg-3: #d6e5ff;
+  --kaizen-text: #13294f;
+  --kaizen-text-muted: #4a6490;
+  --kaizen-text-subtle: #6783b2;
+
+  --kaizen-primary: #2b72f8;
+  --kaizen-primary-strong: #165fe5;
+  --kaizen-secondary: #4f8fff;
+
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-bg-strong: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(80, 123, 201, 0.24);
+  --glass-border-strong: rgba(80, 123, 201, 0.38);
+  --glass-highlight: rgba(255, 255, 255, 0.85);
+
+  --shadow-sm: 0 8px 22px rgba(74, 103, 153, 0.13);
+  --shadow-md: 0 16px 46px rgba(74, 103, 153, 0.17);
+  --shadow-lg: 0 24px 62px rgba(74, 103, 153, 0.2);
+}
+
+:root[data-ui-density="compact"] {
+  --density-gap: 0.82;
+  --density-padding: 0.82;
+}

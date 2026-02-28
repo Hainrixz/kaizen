@@ -6,53 +6,22 @@
  * ─────────────────────────────────────────────
  */
 
-import { spawn } from "node:child_process";
 import {
   isUnsafeWorkspaceInput,
+  normalizeAccessScope,
   readConfig,
   resolveWorkspacePath,
 } from "../config.js";
 import { ensureSessionMemoryFile } from "../context-guard.js";
+import { resolveRunner } from "../engine/runner-registry.js";
 import { buildKaizenPrompt } from "../prompt.js";
-
-type RunResult = {
-  ok: boolean;
-  code: number;
-  errorMessage: string | null;
-};
+import { assertPathAllowed } from "../runtime/access-policy.js";
+import { startHeartbeat } from "../runtime/heartbeat.js";
 
 type ChatOptions = {
   workspace?: string;
   dryRun?: boolean;
 };
-
-function runProcess(command: string, args: string[]): Promise<RunResult> {
-  return new Promise<RunResult>((resolve) => {
-    const child = spawn(command, args, { stdio: "inherit" });
-    child.on("error", (error) => {
-      resolve({
-        ok: false,
-        code: 1,
-        errorMessage: error instanceof Error ? error.message : String(error),
-      });
-    });
-    child.on("close", (code, signal) => {
-      if (signal) {
-        resolve({
-          ok: false,
-          code: 1,
-          errorMessage: `process terminated by signal: ${signal}`,
-        });
-        return;
-      }
-      resolve({
-        ok: code === 0,
-        code: code ?? 1,
-        errorMessage: null,
-      });
-    });
-  });
-}
 
 export async function chatCommand(options: ChatOptions = {}) {
   if (
@@ -66,7 +35,16 @@ export async function chatCommand(options: ChatOptions = {}) {
   }
 
   const config = readConfig();
+  const runner = resolveRunner(config);
   const workspace = resolveWorkspacePath(options.workspace, config.defaults.workspace);
+  assertPathAllowed(
+    workspace,
+    {
+      scope: normalizeAccessScope(config.access.scope) as "workspace" | "workspace-plus" | "full",
+      allowPaths: config.access.allowPaths,
+    },
+    config.defaults.workspace,
+  );
   const abilityProfile = config.defaults.abilityProfile ?? "web-design";
   const modelProvider = config.defaults.modelProvider;
   const localRuntime = config.defaults.localRuntime;
@@ -86,20 +64,16 @@ export async function chatCommand(options: ChatOptions = {}) {
     memoryPath: memory.memoryPath,
   });
 
-  const args: string[] = [];
-
+  const previewArgs: string[] = [];
   if (modelProvider === "local") {
-    args.push("--oss");
+    previewArgs.push("--oss");
     if (localRuntime) {
-      args.push("--local-provider", localRuntime);
+      previewArgs.push("--local-provider", localRuntime);
     }
   }
-
-  args.push("--cd", workspace);
-  args.push(promptResult.prompt);
+  previewArgs.push("--cd", workspace, "<kaizen-prompt>");
 
   if (options.dryRun) {
-    const previewArgs = [...args.slice(0, -1), "<kaizen-prompt>"];
     console.log("");
     console.log("Terminal chat dry run:");
     console.log(`codex ${previewArgs.join(" ")}`);
@@ -129,10 +103,25 @@ export async function chatCommand(options: ChatOptions = {}) {
     }
   }
 
-  const result = await runProcess("codex", args);
-  if (!result.ok && result.errorMessage) {
-    console.log("");
-    console.log(`Unable to launch Codex chat: ${result.errorMessage}`);
+  const heartbeat = startHeartbeat({
+    runtime: "manual",
+  });
+
+  try {
+    const result = await runner.runInteractiveSession({
+      workspace,
+      prompt: promptResult.prompt,
+      modelProvider,
+      localRuntime,
+    });
+
+    if (!result.ok && result.errorMessage) {
+      console.log("");
+      console.log(`Unable to launch model session: ${result.errorMessage}`);
+    }
+    return result.ok;
+  } finally {
+    heartbeat.stop();
+    await heartbeat.wait();
   }
-  return result.ok;
 }

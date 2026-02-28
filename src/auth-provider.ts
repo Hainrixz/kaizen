@@ -6,7 +6,9 @@
  * ─────────────────────────────────────────────
  */
 
-import { spawn } from "node:child_process";
+import { readConfig } from "./config.js";
+import { resolveRunner } from "./engine/runner-registry.js";
+import type { RunnerStdio } from "./engine/runner.js";
 
 export const SUPPORTED_AUTH_PROVIDERS = ["openai-codex"];
 
@@ -16,60 +18,43 @@ type ProcessResult = {
   errorMessage: string | null;
 };
 
-function runProcess(command: string, args: string[]): Promise<ProcessResult> {
-  return new Promise<ProcessResult>((resolve) => {
-    const child = spawn(command, args, {
-      stdio: "inherit",
-      shell: false,
-    });
+type RunProcessOptions = {
+  stdio?: RunnerStdio;
+};
 
-    child.on("error", (error) => {
-      resolve({
-        ok: false,
-        code: 1,
-        errorMessage: error instanceof Error ? error.message : String(error),
-      });
-    });
+function unsupportedProvider(provider: string): ProcessResult {
+  return {
+    ok: false,
+    code: 1,
+    errorMessage: `unsupported auth provider: ${provider}`,
+  };
+}
 
-    child.on("close", (code, signal) => {
-      if (signal) {
-        resolve({
-          ok: false,
-          code: 1,
-          errorMessage: `process terminated by signal: ${signal}`,
-        });
-        return;
-      }
+export async function runAuthLogin(
+  provider: string,
+  options: RunProcessOptions = {},
+): Promise<ProcessResult> {
+  if (provider !== "openai-codex") {
+    return unsupportedProvider(provider);
+  }
 
-      resolve({
-        ok: code === 0,
-        code: code ?? 1,
-        errorMessage: null,
-      });
-    });
+  const runner = resolveRunner(readConfig());
+  return runner.login({
+    stdio: options.stdio ?? "inherit",
   });
 }
 
-export async function runAuthLogin(provider: string): Promise<ProcessResult> {
+export async function runAuthStatus(
+  provider: string,
+  options: RunProcessOptions = {},
+): Promise<ProcessResult> {
   if (provider !== "openai-codex") {
-    return {
-      ok: false,
-      code: 1,
-      errorMessage: `unsupported auth provider: ${provider}`,
-    };
+    return unsupportedProvider(provider);
   }
 
-  return runProcess("codex", ["login"]);
+  const runner = resolveRunner(readConfig());
+  return runner.loginStatus({
+    stdio: options.stdio ?? "inherit",
+  });
 }
 
-export async function runAuthStatus(provider: string): Promise<ProcessResult> {
-  if (provider !== "openai-codex") {
-    return {
-      ok: false,
-      code: 1,
-      errorMessage: `unsupported auth provider: ${provider}`,
-    };
-  }
-
-  return runProcess("codex", ["login", "status"]);
-}
