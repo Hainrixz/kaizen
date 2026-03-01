@@ -45,6 +45,7 @@ export class KaizenApp extends LitElement {
   @state() private messages: ChatMessage[] = [];
   @state() private composerValue = "";
   @state() private runActive = false;
+  @state() private gatewayConnected = false;
   @state() private sessionId = "default";
 
   @state() private serviceWorking = false;
@@ -143,9 +144,15 @@ export class KaizenApp extends LitElement {
       this.sessionId = this.bootstrap.sessionId;
 
       this.gateway = await GatewayClient.connect(this.sessionId);
+      this.gatewayConnected = this.gateway.isConnected();
       this.gateway.addEventListener("rpc-event", (event: Event) => {
         const customEvent = event as CustomEvent<RpcEvent>;
         void this.onRpcEvent(customEvent.detail);
+      });
+      this.gateway.addEventListener("disconnected", () => {
+        this.gatewayConnected = false;
+        this.runActive = false;
+        this.showToast("Connection lost. Refresh the page or relaunch kaizen ui.");
       });
 
       const connectPayload = (await this.gateway.request("connect")) as UiBootstrap & {
@@ -166,6 +173,8 @@ export class KaizenApp extends LitElement {
         this.refreshQueueTasks(),
       ]);
     } catch (error) {
+      this.gatewayConnected = false;
+      this.runActive = false;
       this.showToast(error instanceof Error ? error.message : String(error));
     }
   }
@@ -266,7 +275,11 @@ export class KaizenApp extends LitElement {
   }
 
   private async sendMessage() {
-    if (!this.gateway || this.runActive) {
+    if (!this.gateway || !this.gatewayConnected) {
+      this.showToast("Kaizen UI is not connected yet.");
+      return;
+    }
+    if (this.runActive) {
       return;
     }
 
@@ -671,6 +684,7 @@ export class KaizenApp extends LitElement {
     return renderChatTab({
       messages: this.messages,
       runActive: this.runActive,
+      gatewayConnected: this.gatewayConnected,
       composerValue: this.composerValue,
       onComposerInput: (value) => {
         this.composerValue = value;

@@ -28,8 +28,10 @@ export class GatewayClient extends EventTarget {
     {
       resolve: (payload: unknown) => void;
       reject: (error: Error) => void;
+      timeout: number;
     }
   >();
+  private closed = false;
 
   private constructor(ws: WebSocket) {
     super();
@@ -38,6 +40,8 @@ export class GatewayClient extends EventTarget {
       this.onMessage(event.data);
     });
     ws.addEventListener("close", () => {
+      this.closed = true;
+      this.failAllPending(new Error("Disconnected from Kaizen websocket."));
       this.dispatchEvent(
         new CustomEvent("disconnected", {
           detail: {
@@ -45,6 +49,9 @@ export class GatewayClient extends EventTarget {
           },
         }),
       );
+    });
+    ws.addEventListener("error", () => {
+      this.failAllPending(new Error("Kaizen websocket connection error."));
     });
   }
 
@@ -69,7 +76,15 @@ export class GatewayClient extends EventTarget {
     this.ws.close();
   }
 
+  isConnected() {
+    return !this.closed && this.ws.readyState === WebSocket.OPEN;
+  }
+
   async request<T>(method: string, params?: unknown): Promise<T> {
+    if (!this.isConnected()) {
+      throw new Error("Kaizen websocket is not connected.");
+    }
+
     const id = `req_${++this.requestCounter}`;
     const payload = {
       type: "req",
@@ -79,14 +94,32 @@ export class GatewayClient extends EventTarget {
     };
 
     const responsePromise = new Promise<T>((resolve, reject) => {
+      const timeout = window.setTimeout(() => {
+        const pending = this.pending.get(id);
+        if (!pending) {
+          return;
+        }
+        this.pending.delete(id);
+        reject(new Error(`RPC timeout for "${method}".`));
+      }, 90_000);
+
       this.pending.set(id, {
         resolve: (payload) => resolve(payload as T),
         reject,
+        timeout,
       });
     });
 
     this.ws.send(JSON.stringify(payload));
     return responsePromise;
+  }
+
+  private failAllPending(error: Error) {
+    for (const [id, pending] of this.pending.entries()) {
+      window.clearTimeout(pending.timeout);
+      this.pending.delete(id);
+      pending.reject(error);
+    }
   }
 
   private onMessage(rawData: unknown) {
@@ -122,6 +155,7 @@ export class GatewayClient extends EventTarget {
       }
 
       this.pending.delete(frame.id);
+      window.clearTimeout(pending.timeout);
       if (frame.ok) {
         pending.resolve(frame.payload);
         return;

@@ -4,6 +4,7 @@ import type { ChatMessage } from "../state";
 type ChatViewParams = {
   messages: ChatMessage[];
   runActive: boolean;
+  gatewayConnected: boolean;
   composerValue: string;
   onComposerInput: (value: string) => void;
   onSend: () => void;
@@ -19,6 +20,9 @@ function formatTime(raw: string) {
 }
 
 export function renderChatTab(params: ChatViewParams) {
+  const sendDisabled =
+    params.runActive || !params.gatewayConnected || params.composerValue.trim().length === 0;
+
   return html`
     <section class="tab-panel chat-panel">
       <div class="messages" id="messages-list">
@@ -46,7 +50,7 @@ export function renderChatTab(params: ChatViewParams) {
         <textarea
           .value=${params.composerValue}
           placeholder="ask kaizen to build or improve something..."
-          ?disabled=${params.runActive}
+          ?disabled=${params.runActive || !params.gatewayConnected}
           @input=${(event: Event) => {
             const target = event.target as HTMLTextAreaElement;
             params.onComposerInput(target.value);
@@ -59,13 +63,16 @@ export function renderChatTab(params: ChatViewParams) {
           }}
         ></textarea>
         <div class="composer-actions">
-          <button class="button primary" @click=${params.onSend} ?disabled=${params.runActive}>
+          <button class="button primary" @click=${params.onSend} ?disabled=${sendDisabled}>
             send
           </button>
           <button class="button" @click=${params.onCancel} ?disabled=${!params.runActive}>
             cancel
           </button>
         </div>
+        ${!params.gatewayConnected
+          ? html`<p class="hint">connecting to kaizen runtime...</p>`
+          : null}
       </div>
     </section>
   `;

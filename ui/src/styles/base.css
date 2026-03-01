@@ -388,6 +388,12 @@ textarea {
   margin-top: calc(10px * var(--density-gap));
 }
 
+.composer .hint {
+  margin: calc(8px * var(--density-gap)) 2px 0;
+  color: var(--kaizen-text-subtle);
+  font-size: 0.78rem;
+}
+
 .button {
   border: var(--line-soft);
   border-radius: var(--radius-pill);
